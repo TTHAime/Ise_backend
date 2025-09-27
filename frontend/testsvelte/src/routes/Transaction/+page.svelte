@@ -21,7 +21,6 @@
 
 	let Addshow = $state(false);
 
-
 	async function loadData() {
 		try {
 			const res = await fetch('http://localhost:4000/dashboard', {
@@ -53,12 +52,13 @@
 
 	let PeriodExpense = $state(0);
 	let PeriodIncome = $state(0);
+	let recentdata = $state([]);
 
 	function Parsedata(data) {
 		PeriodExpense = data.data.totalExpense;
 		PeriodIncome = data.data.totalIncome;
-		console.log(PeriodExpense, PeriodIncome);
-
+		recentdata = data.data.recentTransactions;
+		console.log(recentdata);
 	}
 
 	async function SubmitTransaction(p) {
@@ -90,6 +90,7 @@
 			alert(textBody);
 		}
 	}
+
 </script>
 
 <AddTransaction
@@ -174,6 +175,6 @@
 		/>
 	</div>
 	<div class="mt-10">
-		<TransList />
+		<TransList recentdata={recentdata} onAdd={() => (Addshow = true)} />
 	</div>
 </div>
