@@ -26,7 +26,7 @@
             currency,
             currencyDisplay,
             minimumFractionDigits: decimals,
-            maximumSignificantDigits: decimals
+            maximumFractionDigits: decimals
         }).format(n).replace(/\u00A0/g, ' ');
     }
 

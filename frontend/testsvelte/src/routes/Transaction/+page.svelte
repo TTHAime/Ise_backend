@@ -16,14 +16,50 @@
 		'Other',
 		'Pokemon'
 	]);
-	async function load() {
-		// api call to get data from backend
-		//load category
-	}
 
 	let daytoadd = new Date();
 
 	let Addshow = $state(false);
+
+
+	async function loadData() {
+		try {
+			const res = await fetch('http://localhost:4000/dashboard', {
+				method: 'GET',
+				credentials: 'include',
+				headers: { Accept: 'application/json' }
+			});
+
+			if (!res.ok) {
+				const errText = await res.text();
+				throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
+			}
+
+			const data = await res.json();
+			console.log('dashboard:', data);
+			return data;
+		} catch (err) {
+			console.error('Failed to load dashboard:', err);
+			throw err;
+		}
+	}
+
+	let data: any = $state(null);
+
+	onMount(async () => {
+		data = await loadData();
+		Parsedata(data);
+	});
+
+	let PeriodExpense = $state(0);
+	let PeriodIncome = $state(0);
+
+	function Parsedata(data) {
+		PeriodExpense = data.data.totalExpense;
+		PeriodIncome = data.data.totalIncome;
+		console.log(PeriodExpense, PeriodIncome);
+
+	}
 
 	async function SubmitTransaction(p) {
 		console.log(p);
@@ -32,8 +68,8 @@
 			amount: p.amount,
 			description: p.note,
 			type: p.type,
-			date: '2025-09-09T12:30:00.000Z',
-			categoryId: 'cmfgbmjdw000ew93s96v1ic9b' //parsing required na dewi pap
+			date: '2025-09-09T12:30:00.000Z'
+			//categoryId: 'cmfgbmjdw000ew93s96v1ic9b' //parsing required na dewi pap
 		};
 		const response = await fetch('http://localhost:4000/transaction/', {
 			method: 'POST',
@@ -66,7 +102,7 @@
 	onSubmit={(p) => SubmitTransaction(p)}
 />
 
-<div class="px-6 md:px-20 py-10">
+<div class="px-6 py-10 md:px-20">
 	<div class="flex justify-between">
 		<div
 			class="flex items-center justify-center rounded-xl bg-gradient-to-b from-[#86D988] to-[#5AA698]"
@@ -108,7 +144,7 @@
 	<div class="mt-10 grid grid-cols-1 gap-10 md:grid-cols-3">
 		<TransactionCard
 			title="Current Wallet Balance"
-			value={300.0}
+			value={PeriodIncome - PeriodExpense}
 			format="currency"
 			decimals={2}
 			locale="en-GB"
@@ -118,7 +154,7 @@
 		/>
 		<TransactionCard
 			title="Total Period Expenses"
-			value={-300.0}
+			value={-PeriodExpense}
 			format="currency"
 			decimals={2}
 			locale="en-GB"
@@ -128,7 +164,7 @@
 		/>
 		<TransactionCard
 			title="Total Period Income"
-			value={300.0}
+			value={PeriodIncome}
 			format="currency"
 			decimals={2}
 			locale="en-GB"
