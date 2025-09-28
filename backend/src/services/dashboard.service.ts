@@ -30,6 +30,7 @@ export interface DashboardStats {
     amount: number;
     type: 'INCOME' | 'EXPENSE';
     date: Date;
+    description: string;
     categoryName: string;
     categoryColor: string;
     categoryIcon: string;
@@ -89,6 +90,7 @@ export const getDashboardStats = async (
         select: {
           id: true,
           amount: true,
+          description: true,
           type: true,
           date: true,
           category: { select: { name: true, color: true, icon: true } },
@@ -148,6 +150,7 @@ export const getDashboardStats = async (
     amount: toNum(t.amount as unknown as Prisma.Decimal),
     type: t.type,
     date: t.date,
+    description: t.description ?? '—',
     categoryName: t.category?.name ?? '—',
     categoryColor: t.category?.color ?? '#999999',
     categoryIcon: t.category?.icon ?? 'tag',
