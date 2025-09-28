@@ -8,8 +8,8 @@ export const createCategorySchema = z.object({
     .optional(),
   icon: z.union([
     z.string().regex(/^(lucide|heroicons|tabler):[a-z0-9-]+$/i), // ชื่อไอคอนจาก lib
-    z.string().regex(/^emoji:.+$/), // emoji:🍔
-    z.string().regex(/^url:https?:\/\/.+$/i), // url:https://...
+    z.string().regex(/^.+$/), // emoji:🍔
+    z.string().regex(/^https?:\/\/.+$/i), // url:https://...
   ]),
   type: z.enum(['INCOME', 'EXPENSE']),
 });
