@@ -2,22 +2,21 @@
 	import { fade } from 'svelte/transition';
 	import { ButtonToggleGroup, ButtonToggle } from 'flowbite-svelte';
 
-	let singleValue: 'red' | 'green' = $state('green');
+	// Shared types
+	export type Category = {
+		id: string;
+		name: string;
+		color?: string;
+		icon?: string;
+		type?: 'INCOME' | 'EXPENSE';
+	};
 
-	function handleSingleSelect(v: 'red' | 'green') {
-		singleValue = v;
-	}
-
-	const panelClass = $derived(
-		singleValue === 'green' ?  'box-transaction-income' : 'box-transaction-expense'
-	);
-
-	// Type recue
 	type Recurrence = 'NEVER' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 	export type SubmitPayload = {
-        type : 'INCOME' | 'EXPENSE';
-		category: string | null;
-		date: string;
+		id?: string | number;
+		type: 'INCOME' | 'EXPENSE';
+		category: string | null; // <-- send Category.id
+		date: string; // yyyy-mm-dd
 		note: string;
 		amount: number;
 		currency: string;
@@ -26,24 +25,71 @@
 		receipt?: File | null;
 	};
 
+	export type EditTxn = {
+		id: string | number;
+		type: 'INCOME' | 'EXPENSE';
+		categoryId?: string | null; // <-- prefer id when editing
+		categoryName?: string | null; // fallback if only name is known
+		date: string; // ISO or yyyy-mm-dd
+		note: string;
+		amount: number;
+		currency: string;
+		recurrence?: Recurrence;
+		ends?: 'NEVER' | string;
+	};
+
+	// ---- Props
 	const props = $props<{
 		open?: boolean;
 		onClose?: () => void;
 		periodText?: string;
-		categories?: string[];
+		categories?: Category[]; // <-- Category[]
 		currencies?: string[];
 		onPrevPeriod?: () => void;
 		onNextPeriod?: () => void;
 		onSubmit?: (payload: SubmitPayload) => void;
+		editTxn?: EditTxn | null;
 	}>();
 
-	// lerter
+	// ---- Local state
+	let singleValue: 'red' | 'green' = $state('green');
+	function handleSingleSelect(v: 'red' | 'green') {
+		singleValue = v;
+	}
+
 	const open = $derived(props.open ?? false);
 	const onClose = $derived(props.onClose ?? (() => {}));
 	const periodText = $derived(props.periodText ?? '');
-	const categories = $derived(props.categories ?? []);
 	const currencies = $derived(props.currencies ?? ['THB']);
 	const onSubmit = $derived(props.onSubmit ?? ((_: SubmitPayload) => {}));
+	const editTxn = $derived(props.editTxn ?? null);
+
+	const selectedType = $derived(singleValue === 'red' ? 'EXPENSE' : ('INCOME' as const));
+
+	const pickCats = (src: unknown): Category[] =>
+		Array.isArray(src)
+			? src
+			: Array.isArray((src as any)?.categories)
+				? (src as any).categories
+				: [];
+
+	const allCats = $derived(
+		(() => {
+			const src =
+				props.categories ??
+				(props as any).categoriesSet ??
+				[];
+			return pickCats(src);
+		})()
+	);
+
+	const catsForType = $derived(
+		(Array.isArray(allCats) ? allCats : []).filter((c) => !c.type || c.type === selectedType)
+	);
+
+	const panelClass = $derived(
+		selectedType === 'INCOME' ? 'box-transaction-income' : 'box-transaction-expense'
+	);
 
 	let firstField: HTMLSelectElement | null = $state(null);
 	let receiptInput: HTMLInputElement | null = $state(null);
@@ -60,17 +106,55 @@
 
 	let receiptFile: File | null = $state(null);
 
-	// Keep "Ends" in sync with recurrence
+	const toInputDate = (d: string) => {
+		const dt = new Date(d);
+		return isNaN(dt.getTime())
+			? new Date().toISOString().slice(0, 10)
+			: new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+	};
+
+	$effect(() => {
+		if (!categorySel) return;
+		const match = catsForType.some((c) => c.id === categorySel);
+		if (!match) categorySel = '';
+	});
+
+	$effect(() => {
+		if (!open || !editTxn) return;
+
+		singleValue = editTxn.type === 'EXPENSE' ? 'red' : 'green';
+
+		// Prefer categoryId; if only name is known, resolve id by name maybe use name in front idk 
+		const resolvedId =
+			editTxn.categoryId ??
+			allCats.find((c) => c.name === editTxn.categoryName && (!c.type || c.type === editTxn.type))
+				?.id ??
+			'';
+
+		categorySel = resolvedId;
+		date = toInputDate(editTxn.date);
+		note = editTxn.note ?? '';
+		amount = editTxn.amount ?? '';
+		currency = editTxn.currency ?? currencies[0] ?? 'THB';
+		recurrence = editTxn.recurrence ?? 'NEVER';
+
+		if (editTxn.ends && editTxn.ends !== 'NEVER') {
+			endsType = 'ON';
+			endsOn = toInputDate(editTxn.ends);
+		} else {
+			endsType = 'NEVER';
+		}
+		receiptFile = null;
+	});
+
 	$effect(() => {
 		if (recurrence === 'NEVER' && endsType !== 'NEVER') endsType = 'NEVER';
 	});
 
-	// Modal helpers
 	function close() {
 		onClose();
 	}
 
-	// receipt helpers
 	function pickReceipt() {
 		receiptInput?.click();
 	}
@@ -82,18 +166,21 @@
 		if (receiptInput) receiptInput.value = '';
 		receiptFile = null;
 	}
-
 	function onBackdropClick(e: MouseEvent) {
 		if (e.currentTarget === e.target) close();
 	}
+
 	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		const value = Number(amount);
 		const category = categorySel || null;
+
 		if (!category) return alert('Please select a category.');
 		if (!value || Number.isNaN(value) || value <= 0) return alert('Please enter a valid amount.');
+
 		onSubmit({
-            type: singleValue === 'red' ? 'EXPENSE' : 'INCOME',
+			id: editTxn?.id,
+			type: selectedType,
 			category,
 			date,
 			note: note.trim(),
@@ -104,6 +191,8 @@
 			receipt: receiptFile ?? undefined
 		});
 	}
+
+	const submitLabel = $derived(editTxn ? 'Update Transaction' : '+ Add Transaction');
 </script>
 
 <svelte:window on:keydown={(e) => open && e.key === 'Escape' && close()} />
@@ -118,19 +207,25 @@
 			aria-hidden="true"
 		></div>
 
-		<!-- Modal panel -->
+		<!-- Panel -->
 		<div
 			class="box-transaction relative z-10 w-auto rounded-3xl bg-white p-6 shadow ring-1 ring-black/10 dark:bg-gray-900 {panelClass}"
 		>
-			<!-- Header -->
-			<ButtonToggleGroup onSelect={handleSingleSelect}>
+			<div class="mb-4 flex items-center justify-between">
+				<h1 class="head-text-shadow-black">{editTxn ? 'Edit Transaction' : 'Add Transaction'}</h1>
+				{#if periodText}<span class="text-sm text-gray-500">{periodText}</span>{/if}
+			</div>
+
+			<!-- Toggle -->
+			<ButtonToggleGroup onSelect={handleSingleSelect} class="mb-6">
 				<ButtonToggle color="red" value="red" selected={singleValue === 'red'}>Expense</ButtonToggle
 				>
 				<ButtonToggle color="green" value="green" selected={singleValue === 'green'}
 					>Income</ButtonToggle
 				>
 			</ButtonToggleGroup>
-			<!-- Close button -->
+
+			<!-- Close -->
 			<button
 				type="button"
 				class="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -146,30 +241,35 @@
 					/>
 				</svg>
 			</button>
-			<div class="mb-4 flex items-center justify-between"></div>
 
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Row 1 -->
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-12">
-					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Category
+					<div class="md:col-span-4">
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Category
 							<div class="flex items-center rounded-2xl ring-1 ring-gray-300 dark:ring-gray-700">
 								<select
 									bind:value={categorySel}
 									class="w-full rounded-2xl bg-transparent px-4 py-3 outline-none"
 									bind:this={firstField}
 								>
-									<option value="" disabled selected>Select Category</option>
-									{#each categories as c}<option value={c}>{c}</option>{/each}
+									<option value="" disabled selected>
+										{catsForType.length
+											? 'Select Category'
+											: `No ${selectedType.toLowerCase()} categories`}
+									</option>
+									{#each catsForType as c}
+										<option value={c.id}>{c.icon ? `${c.icon} ` : ''}{c.name}</option>
+									{/each}
 								</select>
 							</div>
 						</label>
 					</div>
 
 					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Date
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Date
 							<input
 								type="date"
 								bind:value={date}
@@ -179,8 +279,8 @@
 					</div>
 
 					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Note
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Note
 							<input
 								type="text"
 								placeholder="Write Note"
@@ -191,8 +291,8 @@
 					</div>
 
 					<div class="md:col-span-2">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Amount
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Amount
 							<input
 								type="number"
 								min="0"
@@ -203,7 +303,6 @@
 							/>
 						</label>
 					</div>
-
 					<div class="md:col-span-1">
 						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
 							>Currency
@@ -222,8 +321,8 @@
 				<!-- Row 2 -->
 				<div class="grid grid-cols-1 items-end gap-4 md:grid-cols-12">
 					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Auto Recurrence
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Auto Recurrence
 							<select
 								bind:value={recurrence}
 								class="w-full rounded-2xl px-4 py-3 ring-1 ring-gray-300 dark:bg-transparent dark:ring-gray-700"
@@ -237,9 +336,9 @@
 						</label>
 					</div>
 
-					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300"
-							>Ends
+					<div class="md:col-span-4">
+						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
+							Ends
 							<div class="flex gap-2">
 								<select
 									bind:value={endsType}
@@ -259,9 +358,9 @@
 						</label>
 					</div>
 
-					<div class="md:col-span-4">
-						<label class="mb-1 block text-sm text-gray-600 opacity-0"
-							>Add Receipt
+					<div class="md:col-span-3">
+						<label class="mb-1 block text-sm text-gray-600 opacity-0">
+							Add Receipt
 							<div class="flex items-center gap-3">
 								<button
 									type="button"
@@ -296,7 +395,7 @@
 							type="submit"
 							class="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-400 to-green-500 px-6 py-3 text-white shadow hover:from-emerald-500 hover:to-green-600"
 						>
-							+ Add Transaction
+							{submitLabel}
 						</button>
 					</div>
 				</div>
@@ -323,6 +422,6 @@
 			rgba(43, 192, 110, 0.311) 0px 25px;
 	}
 	.box-transaction {
-		transition: box-shadow 180ms ease; /* optional: smooth change */
+		transition: box-shadow 180ms ease;
 	}
 </style>

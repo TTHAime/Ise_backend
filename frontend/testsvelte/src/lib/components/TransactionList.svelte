@@ -4,64 +4,118 @@
 		amount: number;
 		type: 'INCOME' | 'EXPENSE' | string;
 		date: string | Date;
+		categoryId?: string | null;
 		categoryName?: string | null;
 		description?: string | null;
 	};
 
-	type Txn = { id: string | number; date: Date; category: string; note: string; amount: number };
-	type Group = { key: string; label: string; items: Txn[] };
+	type Category = {
+		id: string;
+		name: string;
+		color?: string;
+		icon?: string;
+		type?: 'INCOME' | 'EXPENSE';
+	};
 
 	let {
 		recentdata = undefined as ApiTxn[] | undefined,
-		onAdd = undefined as undefined | (() => void)
+
+		// categories can be an array, or an object with a 'categories' array.
+		categories = undefined as Category[] | { categories: Category[] } | undefined,
+		categoriesSet = undefined as { categories: Category[] } | undefined,
+		CategoriesSet = undefined as { categories: Category[] } | undefined, // note capital C seen in your logs
+
+		onAdd = undefined as undefined | (() => void),
+		onItemClick = undefined as undefined | ((t: Txn) => void)
 	} = $props<{
 		recentdata?: ApiTxn[];
 		transactions?: ApiTxn[];
 		items?: ApiTxn[];
+		categories?: Category[] | { categories: Category[] };
+		categoriesSet?: { categories: Category[] };
+		CategoriesSet?: { categories: Category[] };
 		onAdd?: () => void;
+		onItemClick?: (t: Txn) => void;
+
 	}>();
 
 	const raw = $derived(recentdata ?? []);
 
-	$effect(() => {
-		console.log('raw length:', raw.length, raw[0]);
-	});
+	const pickCats = (src: unknown): Category[] =>
+		Array.isArray(src)
+			? src
+			: Array.isArray((src as any)?.categories)
+				? (src as any).categories
+				: [];
+
+	const catList = $derived(
+		(() => {
+			// priority: explicit categories prop, then categoriesSet, then CategoriesSet
+			const a = pickCats(categories);
+			if (a.length) return a;
+			const b = pickCats(categoriesSet);
+			if (b.length) return b;
+			return pickCats(CategoriesSet);
+		})()
+	);
+
+	const catById = $derived(new Map(catList.map((c) => [String(c.id), c])));
+	const catByName = $derived(new Map(catList.map((c) => [String(c.name).toLowerCase(), c])));
 
 	const parseDate = (d: unknown): Date => {
 		if (d instanceof Date) return d;
 		const dt = new Date(String(d));
-		return isNaN(dt.getTime()) ? new Date() : dt; // fallback to "now" instead of dropping the row
+		return isNaN(dt.getTime()) ? new Date() : dt;
 	};
 
+	const resolveCategory = (x: ApiTxn): Category | undefined => {
+		// try id first
+		const byId = x.categoryId ? catById.get(String(x.categoryId)) : undefined;
+		if (byId) return byId;
+		// fallback by type
+		const t = String(x.type || '').toUpperCase();
+		return t === 'INCOME'
+			? { id: 'income', name: 'Income', color: '#16a34a', icon: '💰', type: 'INCOME' }
+			: { id: 'expense', name: 'Expense', color: '#ef4444', icon: '🧾', type: 'EXPENSE' };
+	};
+
+	//ได้ category เด่วมาแก้งับ
+	type Txn = {
+		id: string | number;
+		date: Date;
+		category: string;
+		note: string;
+		amount: number;
+		color?: string;
+		icon?: string;
+	};
 	const toTxn = (x: ApiTxn): Txn => {
 		const t = String(x.type || '').toUpperCase();
-		const amt = Number(x.amount) || 0;
-		const signed = t === 'INCOME' ? Math.abs(amt) : -Math.abs(amt);
-		const cat = x.categoryName && x.categoryName !== '_' ? x.categoryName : t === 'INCOME' ? 'Income' : 'Expense';
+		const amt = Math.abs(Number(x.amount) || 0);
+		const signed = t === 'INCOME' ? amt : -amt;
+		const cat = resolveCategory(x);
 		return {
 			id: x.id,
 			date: parseDate(x.date),
-			category: cat,
-			note: x.description ?? 'note changee',
-			amount: signed
+			category: cat?.name ?? (t === 'INCOME' ? 'Income' : 'Expense'),
+			note: x.description ?? '',
+			amount: signed,
+			color: cat?.color,
+			icon: cat?.icon
 		};
 	};
 
 	const txns = $derived(raw.map(toTxn));
 	const isEmpty = $derived(txns.length === 0);
 
-	const dayKey = (d: Date) => {
-		const y = d.getFullYear(),
-			m = String(d.getMonth() + 1).padStart(2, '0'),
-			day = String(d.getDate()).padStart(2, '0');
-		return `${y}-${m}-${day}`;
-	};
+	const dayKey = (d: Date) =>
+		`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 	const dayLabel = (d: Date) =>
 		d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 	const groups = $derived(
 		(() => {
-			const map = new Map<string, Group>();
+			const map = new Map<string, { key: string; label: string; items: Txn[] }>();
 			for (const t of txns) {
 				const k = dayKey(t.date);
 				let g = map.get(k);
@@ -81,7 +135,7 @@
 		(n >= 0 ? '+' : '-') +
 		new Intl.NumberFormat('en-GB', {
 			style: 'currency',
-			currency: 'THB',//chage later na
+			currency: 'THB',
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
 		})
@@ -103,8 +157,10 @@
 		{#if onAdd}
 			<button
 				class="mt-4 rounded-xl bg-emerald-500 px-4 py-2 font-medium text-white hover:brightness-110 active:scale-95"
-				onclick={() => onAdd?.()}>+ Add Transaction</button
+				onclick={() => onAdd?.()}
 			>
+				+ Add Transaction
+			</button>
 		{/if}
 	</div>
 {:else}
@@ -118,25 +174,69 @@
 				>
 					{g.label}
 				</h3>
+
 				<ul class="divide-y divide-gray-100 px-4">
 					{#each g.items as t (t.id)}
-						<li class="flex items-center gap-3 py-3">
-							<span
-								class="inline-block h-5 w-5 rounded-full"
-								class:bg-green-400={t.amount > 0}
-								class:bg-red-500={t.amount < 0}
-							></span>
-							<div class="min-w-0 flex-1">
-								<div class="truncate text-base font-medium text-gray-800">{t.category}</div>
-								{#if t.note}<div class="truncate text-sm text-gray-500">{t.note}</div>{/if}
-							</div>
-							<div
-								class="ml-2 shrink-0 text-right text-base font-semibold"
-								class:text-green-500={t.amount > 0}
-								class:text-red-500={t.amount < 0}
+						<li>
+							<button
+								type="button"
+								onclick={() => onItemClick?.(t)}
+								class="group w-full cursor-pointer rounded-xl px-3 py-3 transition
+									hover:bg-gray-50/80 focus-visible:outline-none
+									focus-visible:ring-2 focus-visible:ring-offset-2
+									active:scale-[0.99]
+									{t.amount > 0 ? 'focus-visible:ring-emerald-400' : 'focus-visible:ring-rose-400'}"
+								aria-label={`Open ${t.category} ${t.amount >= 0 ? 'income' : 'expense'} transaction`}
 							>
-								{fmtAmount(t.amount)}
-							</div>
+								<div class="flex items-center gap-3">
+									<!-- colored dot -->
+									<span
+										class="inline-block h-5 w-5 rounded-full ring-1 ring-black/5 transition
+											group-hover:scale-110"
+										style={t.color ? `background:${t.color}` : ''}
+										class:bg-green-400={!t.color && t.amount > 0}
+										class:bg-red-500={!t.color && t.amount < 0}
+										aria-hidden="true"
+									></span>
+
+									<!-- text -->
+									<div class="min-w-0 flex-1">
+										<div
+											class="flex gap-2 truncate text-base font-semibold text-gray-900"
+										>
+											{#if t.icon}<span
+													aria-hidden="true"
+													class="transition group-hover:translate-y-[-1px]">{t.icon}</span
+												>{/if}
+											<span class="truncate">{t.category}</span>
+										</div>
+										{#if t.note}
+											<div class="truncate text-sm text-gray-500">{t.note}</div>
+										{/if}
+									</div>
+
+									<!-- amount + chevron -->
+									<div class="ml-2 flex shrink-0 items-center gap-2">
+										<span
+											class="text-base font-semibold transition
+												{t.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}"
+										>
+											{fmtAmount(t.amount)}
+										</span>
+
+										<!-- chevron appears on hover -->
+										<svg
+											class="size-5 translate-x-[-4px] opacity-0 transition
+													group-hover:translate-x-0 group-hover:opacity-100"
+											viewBox="0 0 20 20"
+											fill="currentColor"
+											aria-hidden="true"
+										>
+											<path d="M7.5 5.5l5 4.5-5 4.5" />
+										</svg>
+									</div>
+								</div>
+							</button>
 						</li>
 					{/each}
 				</ul>

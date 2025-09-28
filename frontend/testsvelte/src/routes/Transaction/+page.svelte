@@ -7,21 +7,107 @@
 	const symbolRight = '>';
 	let label = $state('Date');
 
-	const categories = $state([
-		'Food',
-		'Rent',
-		'Utilities',
-		'Entertainment',
-		'Transport',
-		'Other',
-		'Pokemon'
+	type Category = {
+		id: string;
+		name: string;
+		color?: string; // e.g. "#FDA7DF"
+		icon?: string; // e.g. "📄"
+		type?: 'INCOME' | 'EXPENSE';
+	};
+
+	let categories = $state<Category[]>([//default hard code pap
+		{ id: 'food', name: 'Food & Dining', color: '#FF6B6B', icon: '🍽️', type: 'EXPENSE' },
+		{ id: 'rent', name: 'Rent', color: '#A78BFA', icon: '🏠', type: 'EXPENSE' },
+		{ id: 'utilities', name: 'Bills & Utilities', color: '#FDA7DF', icon: '🧾', type: 'EXPENSE' },
+		{ id: 'entertainment', name: 'Entertainment', color: '#96CEB4', icon: '🎬', type: 'EXPENSE' },
+		{ id: 'transport', name: 'Transportation', color: '#4ECDC4', icon: '🚗', type: 'EXPENSE' },
+		{ id: 'health', name: 'Healthcare', color: '#FFEAA7', icon: '🏥', type: 'EXPENSE' },
+		{ id: 'shopping', name: 'Shopping', color: '#45B7D1', icon: '🛍️', type: 'EXPENSE' },
+		{ id: 'travel', name: 'Travel', color: '#74B9FF', icon: '✈️', type: 'EXPENSE' },
+		// income examples (optional)
+		{ id: 'salary', name: 'Salary', color: '#16A34A', icon: '💰', type: 'INCOME' },
+		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '➕', type: 'INCOME' }
 	]);
 
-	let daytoadd = new Date();
-
 	let Addshow = $state(false);
+	let editTxn: import('$lib/components/AddTransaction.svelte').EditTxn | null = $state(null);
+
+	function openAdd() {
+		editTxn = null;
+		Addshow = true;
+	}
+
+	function openEdit(t: {
+		id: string | number;
+		date: string | Date;
+		category: string;
+		note?: string;
+		amount: number;
+	}) {
+		editTxn = {
+			id: t.id,
+			type: t.amount >= 0 ? 'INCOME' : 'EXPENSE',
+			categoryId: t.category,
+			date: typeof t.date === 'string' ? t.date : t.date.toISOString(),
+			note: t.note ?? '',
+			amount: Math.abs(t.amount),
+			currency: 'THB'
+		};
+		Addshow = true;
+	}
+
+
+	//maybe use this in submit change mode smt
+	async function saveTxn(payload: import('$lib/components/AddTransaction.svelte').SubmitPayload) {
+		if (payload.id) {
+			// UPDATE
+			await fetch('', {
+				method: 'PUT',
+				credentials: 'include',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+		} else {
+			// CREATE
+			await fetch('', {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+		}
+		Addshow = false;
+		editTxn = null;
+	}
+
+	async function loadCategories() {
+		const [expRes, incRes] = await Promise.all([
+			fetch('http://localhost:4000/category?type=EXPENSE', {
+				credentials: 'include',
+				headers: { Accept: 'application/json' }
+			}),
+			fetch('http://localhost:4000/category?type=INCOME', {
+				credentials: 'include',
+				headers: { Accept: 'application/json' }
+			})
+		]);
+		if (!expRes.ok) throw new Error(await expRes.text());
+		if (!incRes.ok) throw new Error(await incRes.text());
+
+		const [exp, inc] = (await Promise.all([expRes.json(), incRes.json()])) as [
+			Category[],
+			Category[]
+		];
+
+		const expNorm = exp.map((c) => ({ ...c, type: c.type ?? ('EXPENSE' as const) }));
+		const incNorm = inc.map((c) => ({ ...c, type: c.type ?? ('INCOME' as const) }));
+
+		const map = new Map<string, Category>([...expNorm, ...incNorm].map((c) => [c.id, c]));
+		categories = Array.from(map.values());
+	}
 
 	async function loadData() {
+		loadCategories();
 		try {
 			const res = await fetch('http://localhost:4000/dashboard', {
 				method: 'GET',
@@ -43,6 +129,7 @@
 		}
 	}
 
+
 	let data: any = $state(null);
 
 	onMount(async () => {
@@ -58,7 +145,6 @@
 		PeriodExpense = data.data.totalExpense;
 		PeriodIncome = data.data.totalIncome;
 		recentdata = data.data.recentTransactions;
-		console.log(recentdata);
 	}
 
 	async function SubmitTransaction(p) {
@@ -68,8 +154,8 @@
 			amount: p.amount,
 			description: p.note,
 			type: p.type,
-			date: '2025-09-09T12:30:00.000Z'
-			//categoryId: 'cmfgbmjdw000ew93s96v1ic9b' //parsing required na dewi pap
+			date: '2025-09-09T12:30:00.000Z',
+			categoryId: p.category || null
 		};
 		const response = await fetch('http://localhost:4000/transaction/', {
 			method: 'POST',
@@ -90,12 +176,15 @@
 			alert(textBody);
 		}
 	}
-
 </script>
 
 <AddTransaction
 	open={Addshow}
-	onClose={() => (Addshow = false)}
+	onClose={() => {
+		Addshow = false;
+		editTxn = null;
+	}}
+	{editTxn}
 	{categories}
 	currencies={['THB', 'USD', 'JPY']}
 	onPrevPeriod={() => console.log('prev')}
@@ -175,6 +264,11 @@
 		/>
 	</div>
 	<div class="mt-10">
-		<TransList recentdata={recentdata} onAdd={() => (Addshow = true)} />
+		<TransList
+			{recentdata}
+			{categories}
+			onAdd={() => (Addshow = true)}
+			onItemClick={(t) => openEdit(t)}
+		/>
 	</div>
 </div>

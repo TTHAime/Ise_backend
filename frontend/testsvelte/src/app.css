@@ -58,6 +58,11 @@
         color: white;
 }
 
+.head-text-shadow-black {
+        text-shadow: rgb(255, 255, 255) 4px 4px 10px;
+        color: rgb(0, 0, 0);
+}
+
 .normal-text {
         font: Inria Sans;
         font-weight: 400;
