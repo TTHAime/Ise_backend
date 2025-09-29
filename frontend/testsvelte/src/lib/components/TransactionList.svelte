@@ -19,11 +19,9 @@
 
 	let {
 		recentdata = undefined as ApiTxn[] | undefined,
-
-		// categories can be an array, or an object with a 'categories' array.
 		categories = undefined as Category[] | { categories: Category[] } | undefined,
 		categoriesSet = undefined as { categories: Category[] } | undefined,
-		CategoriesSet = undefined as { categories: Category[] } | undefined, // note capital C seen in your logs
+		CategoriesSet = undefined as { categories: Category[] } | undefined,
 
 		onAdd = undefined as undefined | (() => void),
 		onItemClick = undefined as undefined | ((t: Txn) => void)
@@ -36,7 +34,6 @@
 		CategoriesSet?: { categories: Category[] };
 		onAdd?: () => void;
 		onItemClick?: (t: Txn) => void;
-
 	}>();
 
 	const raw = $derived(recentdata ?? []);
@@ -50,7 +47,6 @@
 
 	const catList = $derived(
 		(() => {
-			// priority: explicit categories prop, then categoriesSet, then CategoriesSet
 			const a = pickCats(categories);
 			if (a.length) return a;
 			const b = pickCats(categoriesSet);
@@ -68,40 +64,56 @@
 		return isNaN(dt.getTime()) ? new Date() : dt;
 	};
 
+	// Resolve a category record (for icon/color) using id, then name, else generic by type
 	const resolveCategory = (x: ApiTxn): Category | undefined => {
-		// try id first
-		const byId = x.categoryId ? catById.get(String(x.categoryId)) : undefined;
-		if (byId) return byId;
-		// fallback by type
-		const t = String(x.type || '').toUpperCase();
+		// 1) by id
+		if (x.categoryId) {
+			const byId = catById.get(String(x.categoryId));
+			if (byId) return byId;
+		}
+		// 2) by name (case-insensitive)
+		const name = (x.categoryName ?? '').trim().toLowerCase();
+		if (name) {
+			const byName = catByName.get(name);
+			if (byName) return byName;
+		}
+		// 3) generic by type
+		const t = String(x.type || '').toUpperCase() === 'INCOME' ? 'INCOME' : 'EXPENSE';
 		return t === 'INCOME'
 			? { id: 'income', name: 'Income', color: '#16a34a', icon: '💰', type: 'INCOME' }
 			: { id: 'expense', name: 'Expense', color: '#ef4444', icon: '🧾', type: 'EXPENSE' };
 	};
 
-	//ได้ category เด่วมาแก้งับ
 	type Txn = {
 		id: string | number;
 		date: Date;
-		category: string;
+		category: string; // display name
 		note: string;
-		amount: number;
+		amount: number; // sign (+ income / - expense)
 		color?: string;
 		icon?: string;
 	};
+
 	const toTxn = (x: ApiTxn): Txn => {
 		const t = String(x.type || '').toUpperCase();
 		const amt = Math.abs(Number(x.amount) || 0);
 		const signed = t === 'INCOME' ? amt : -amt;
+
 		const cat = resolveCategory(x);
+
+		const displayName =
+			(x.categoryName && x.categoryName.trim()) ||
+			cat?.name ||
+			(t === 'INCOME' ? 'Income' : 'Expense');
+
 		return {
 			id: x.id,
 			date: parseDate(x.date),
-			category: cat?.name ?? (t === 'INCOME' ? 'Income' : 'Expense'),
+			category: displayName,
 			note: x.description ?? '',
 			amount: signed,
 			color: cat?.color,
-			icon: cat?.icon
+			icon: cat?.icon ?? (t === 'INCOME' ? '💰' : '🧾') // icon from categories; fallback by type
 		};
 	};
 
@@ -131,16 +143,15 @@
 		})()
 	);
 
-	const fmtAmount = (n: number) =>
-		(n >= 0 ? '+' : '-') +
-		new Intl.NumberFormat('en-GB', {
-			style: 'currency',
-			currency: 'THB',
+	// THB suffix
+	const fmtAmount = (n: number) => {
+		const sign = n >= 0 ? '+' : '-';
+		const num = new Intl.NumberFormat('en-GB', {
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
-		})
-			.format(Math.abs(n))
-			.replace(/\u00A0/g, ' ');
+		}).format(Math.abs(n));
+		return `${sign}${num} THB`;
+	};
 </script>
 
 {#if isEmpty}
@@ -181,56 +192,59 @@
 							<button
 								type="button"
 								onclick={() => onItemClick?.(t)}
-								class="group w-full cursor-pointer rounded-xl px-3 py-3 transition
-									hover:bg-gray-50/80 focus-visible:outline-none
-									focus-visible:ring-2 focus-visible:ring-offset-2
-									active:scale-[0.99]
-									{t.amount > 0 ? 'focus-visible:ring-emerald-400' : 'focus-visible:ring-rose-400'}"
+								class="group w-full cursor-pointer rounded-xl px-3 py-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.99]"
+								class:hover:bg-emerald-50={t.amount > 0}
+								class:hover:bg-rose-50={t.amount < 0}
+								class:focus-visible:ring-emerald-400={t.amount > 0}
+								class:focus-visible:ring-rose-400={t.amount < 0}
 								aria-label={`Open ${t.category} ${t.amount >= 0 ? 'income' : 'expense'} transaction`}
 							>
-								<div class="flex items-center gap-3">
-									<!-- colored dot -->
-									<span
-										class="inline-block h-5 w-5 rounded-full ring-1 ring-black/5 transition
-											group-hover:scale-110"
-										style={t.color ? `background:${t.color}` : ''}
-										class:bg-green-400={!t.color && t.amount > 0}
-										class:bg-red-500={!t.color && t.amount < 0}
-										aria-hidden="true"
-									></span>
+								<!-- LEFT -->
+								<div class="flex w-full items-start justify-between gap-3">
+									<!-- Left cluster -->
+									<div class="flex min-w-0 flex-1 items-start gap-3">
+										<span
+											class="inline-block h-5 w-5 rounded-full ring-1 ring-black/5 transition group-hover:scale-110"
+											style={t.color ? `background:${t.color}` : ''}
+											class:bg-green-400={!t.color && t.amount > 0}
+											class:bg-red-500={!t.color && t.amount < 0}
+											aria-hidden="true"
+										></span>
 
-									<!-- text -->
-									<div class="min-w-0 flex-1">
-										<div
-											class="flex gap-2 truncate text-base font-semibold text-gray-900"
-										>
-											{#if t.icon}<span
-													aria-hidden="true"
-													class="transition group-hover:translate-y-[-1px]">{t.icon}</span
-												>{/if}
-											<span class="truncate">{t.category}</span>
+										<!-- text block  -->
+										<div class="min-w-0 text-left">
+											<div
+												class="flex items-center gap-2 truncate text-base font-semibold text-gray-900"
+											>
+												{#if t.icon}
+													<span aria-hidden="true" class="transition group-hover:-translate-y-px"
+														>{t.icon}</span
+													>
+												{/if}
+												<span class="truncate">{t.category}</span>
+											</div>
+											{#if t.note}
+												<div class="mt-0.5 truncate text-sm text-gray-500">{t.note}</div>
+											{/if}
 										</div>
-										{#if t.note}
-											<div class="truncate text-sm text-gray-500">{t.note}</div>
-										{/if}
 									</div>
 
-									<!-- amount + chevron -->
+									<!-- Right -->
 									<div class="ml-2 flex shrink-0 items-center gap-2">
 										<span
-											class="text-base font-semibold transition
-												{t.amount > 0 ? 'text-emerald-600' : 'text-rose-600'}"
+											class="text-base font-semibold transition group-hover:brightness-110"
+											class:text-emerald-600={t.amount > 0}
+											class:text-rose-600={t.amount < 0}
 										>
 											{fmtAmount(t.amount)}
 										</span>
-
-										<!-- chevron appears on hover -->
 										<svg
-											class="size-5 translate-x-[-4px] opacity-0 transition
-													group-hover:translate-x-0 group-hover:opacity-100"
+											class="size-5 -translate-x-1 opacity-0 transition group-hover:translate-x-0 group-hover:opacity-100"
 											viewBox="0 0 20 20"
 											fill="currentColor"
 											aria-hidden="true"
+											class:text-emerald-500={t.amount > 0}
+											class:text-rose-500={t.amount < 0}
 										>
 											<path d="M7.5 5.5l5 4.5-5 4.5" />
 										</svg>

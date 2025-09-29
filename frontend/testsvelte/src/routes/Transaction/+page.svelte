@@ -15,7 +15,8 @@
 		type?: 'INCOME' | 'EXPENSE';
 	};
 
-	let categories = $state<Category[]>([//default hard code pap
+	let categories = $state<Category[]>([
+		//default hard code pap
 		{ id: 'food', name: 'Food & Dining', color: '#FF6B6B', icon: '🍽️', type: 'EXPENSE' },
 		{ id: 'rent', name: 'Rent', color: '#A78BFA', icon: '🏠', type: 'EXPENSE' },
 		{ id: 'utilities', name: 'Bills & Utilities', color: '#FDA7DF', icon: '🧾', type: 'EXPENSE' },
@@ -26,7 +27,7 @@
 		{ id: 'travel', name: 'Travel', color: '#74B9FF', icon: '✈️', type: 'EXPENSE' },
 		// income examples (optional)
 		{ id: 'salary', name: 'Salary', color: '#16A34A', icon: '💰', type: 'INCOME' },
-		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '➕', type: 'INCOME' }
+		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '+', type: 'INCOME' }
 	]);
 
 	let Addshow = $state(false);
@@ -56,29 +57,49 @@
 		Addshow = true;
 	}
 
-
 	//maybe use this in submit change mode smt
-	async function saveTxn(payload: import('$lib/components/AddTransaction.svelte').SubmitPayload) {
-		if (payload.id) {
-			// UPDATE
-			await fetch('', {
-				method: 'PUT',
-				credentials: 'include',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(payload)
-			});
-		} else {
-			// CREATE
-			await fetch('', {
-				method: 'POST',
-				credentials: 'include',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(payload)
-			});
+	async function SubmitTransaction(p) {
+		const method = p.id ? 'PATCH' : 'POST';
+		const url = p.id
+			? 'http://localhost:4000/transaction/'.concat(p.id) // up
+			: 'http://localhost:4000/transaction'; // add
+		const body = {
+			amount: p.amount,
+			description: p.note,
+			type: p.type,
+			date: p.date,
+			categoryId: p.category
+		};
+
+		const res = await fetch(url, {
+			method,
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+
+		if (!res.ok) {
+			const msg = await res.text();
+			throw new Error('${method} ${url} failed: ${msg}');
 		}
+
+		// close & clear
 		Addshow = false;
 		editTxn = null;
 	}
+
+	const asCategoryArray = (x: unknown): Category[] => {
+		if (Array.isArray(x)) return x as Category[];
+		if (x && typeof x === 'object') {
+			const obj = x as any;
+			if (Array.isArray(obj.data)) return obj.data as Category[];
+			if (Array.isArray(obj.categories)) return obj.categories as Category[];
+		}
+		return []; // fallback
+	};
+
+	const dedupeById = (arr: Category[]) =>
+		Array.from(new Map(arr.map((c) => [String(c.id), c])).values());
 
 	async function loadCategories() {
 		const [expRes, incRes] = await Promise.all([
@@ -94,16 +115,20 @@
 		if (!expRes.ok) throw new Error(await expRes.text());
 		if (!incRes.ok) throw new Error(await incRes.text());
 
-		const [exp, inc] = (await Promise.all([expRes.json(), incRes.json()])) as [
+		const [expRaw, incRaw] = (await Promise.all([expRes.json(), incRes.json()])) as [
 			Category[],
 			Category[]
 		];
 
-		const expNorm = exp.map((c) => ({ ...c, type: c.type ?? ('EXPENSE' as const) }));
-		const incNorm = inc.map((c) => ({ ...c, type: c.type ?? ('INCOME' as const) }));
+		// Normalize to arrays (handles [], {data:[]}, {categories:[]}, etc.)
+		const exp = asCategoryArray(expRaw).map((c) => ({
+			...c,
+			type: c.type ?? ('EXPENSE' as const)
+		}));
+		const inc = asCategoryArray(incRaw).map((c) => ({ ...c, type: c.type ?? ('INCOME' as const) }));
 
-		const map = new Map<string, Category>([...expNorm, ...incNorm].map((c) => [c.id, c]));
-		categories = Array.from(map.values());
+		const merged = dedupeById([...exp, ...inc]);
+		categories = merged;
 	}
 
 	async function loadData() {
@@ -117,18 +142,17 @@
 
 			if (!res.ok) {
 				const errText = await res.text();
-				throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
+				throw new Error('HTTP ${res.status} ${res.statusText}: ${errText}');
 			}
 
 			const data = await res.json();
-			console.log('dashboard:', data);
+			// console.log('dashboard:', data);
 			return data;
 		} catch (err) {
 			console.error('Failed to load dashboard:', err);
 			throw err;
 		}
 	}
-
 
 	let data: any = $state(null);
 
@@ -147,50 +171,50 @@
 		recentdata = data.data.recentTransactions;
 	}
 
-	async function SubmitTransaction(p) {
-		console.log(p);
-		Addshow = false;
-		let postdata = {
-			amount: p.amount,
-			description: p.note,
-			type: p.type,
-			date: '2025-09-09T12:30:00.000Z',
-			categoryId: p.category || null
-		};
-		const response = await fetch('http://localhost:4000/transaction/', {
-			method: 'POST',
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json' // <-- tell server this is JSON
-			},
-			body: JSON.stringify(postdata)
-		});
-		console.log('Sending to API:', { postdata });
-		console.log(JSON.stringify(postdata));
-		if (response.ok) {
-			alert('Add submitted successfully!');
-			// Optionally clear form fields or redirect
-		} else {
-			alert('Error submitting.');
-			const textBody: string = await response.text();
-			alert(textBody);
-		}
-	}
+	// async function SubmitTransaction(p) {
+	// 	console.log(p);
+	// 	Addshow = false;
+	// 	let postdata = {
+	// 		amount: p.amount,
+	// 		description: p.note,
+	// 		type: p.type,
+	// 		date: '2025-09-09T12:30:00.000Z',
+	// 		categoryId: p.category || null
+	// 	};
+	// 	const response = await fetch('http://localhost:4000/transaction/', {
+	// 		method: 'POST',
+	// 		credentials: 'include',
+	// 		headers: {
+	// 			'Content-Type': 'application/json' // <-- tell server this is JSON
+	// 		},
+	// 		body: JSON.stringify(postdata)
+	// 	});
+	// 	console.log('Sending to API:', { postdata });
+	// 	console.log(JSON.stringify(postdata));
+	// 	if (response.ok) {
+	// 		alert('Add submitted successfully!');
+	// 		// Optionally clear form fields or redirect
+	// 	} else {
+	// 		alert('Error submitting.');
+	// 		const textBody: string = await response.text();
+	// 		alert(textBody);
+	// 	}
+	// }
 </script>
 
-<AddTransaction
-	open={Addshow}
-	onClose={() => {
-		Addshow = false;
-		editTxn = null;
-	}}
-	{editTxn}
-	{categories}
-	currencies={['THB', 'USD', 'JPY']}
-	onPrevPeriod={() => console.log('prev')}
-	onNextPeriod={() => console.log('next')}
-	onSubmit={(p) => SubmitTransaction(p)}
-/>
+{#key editTxn?.id ?? 'create'}
+	<AddTransaction
+		open={Addshow}
+		onClose={() => {
+			Addshow = false;
+			editTxn = null;
+		}}
+		{editTxn}
+		{categories}
+		currencies={['THB', 'USD', 'JPY']}
+		onSubmit={(p) => SubmitTransaction(p)}
+	/>
+{/key}
 
 <div class="px-6 py-10 md:px-20">
 	<div class="flex justify-between">
@@ -201,7 +225,7 @@
 			<button
 				name="Add Transaction"
 				class="flex items-center justify-center p-3 font-mono font-semibold text-white hover:-translate-y-0.5 hover:scale-[1.01] hover:shadow-xl hover:shadow-emerald-500/35"
-				onclick={() => (Addshow = true)}
+				onclick={openAdd}
 			>
 				+ Add Transaction
 			</button>

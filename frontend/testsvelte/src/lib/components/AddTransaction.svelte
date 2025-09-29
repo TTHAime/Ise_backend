@@ -28,8 +28,7 @@
 	export type EditTxn = {
 		id: string | number;
 		type: 'INCOME' | 'EXPENSE';
-		categoryId?: string | null; // <-- prefer id when editing
-		categoryName?: string | null; // fallback if only name is known
+		categoryId?: Category['id'];
 		date: string; // ISO or yyyy-mm-dd
 		note: string;
 		amount: number;
@@ -75,10 +74,7 @@
 
 	const allCats = $derived(
 		(() => {
-			const src =
-				props.categories ??
-				(props as any).categoriesSet ??
-				[];
+			const src = props.categories ?? (props as any).categoriesSet ?? [];
 			return pickCats(src);
 		})()
 	);
@@ -120,31 +116,41 @@
 	});
 
 	$effect(() => {
-		if (!open || !editTxn) return;
+		if (!open) return;
 
-		singleValue = editTxn.type === 'EXPENSE' ? 'red' : 'green';
+		if (editTxn) {
+			// edit mode → prefill
+			singleValue = editTxn.type === 'EXPENSE' ? 'red' : 'green';
 
-		// Prefer categoryId; if only name is known, resolve id by name maybe use name in front idk 
-		const resolvedId =
-			editTxn.categoryId ??
-			allCats.find((c) => c.name === editTxn.categoryName && (!c.type || c.type === editTxn.type))
-				?.id ??
-			'';
+			const resolvedId = editTxn.categoryId /* keep this; parent provides id */ ?? '';
 
-		categorySel = resolvedId;
-		date = toInputDate(editTxn.date);
-		note = editTxn.note ?? '';
-		amount = editTxn.amount ?? '';
-		currency = editTxn.currency ?? currencies[0] ?? 'THB';
-		recurrence = editTxn.recurrence ?? 'NEVER';
+			categorySel = resolvedId;
+			date = toInputDate(editTxn.date);
+			note = editTxn.note ?? '';
+			amount = editTxn.amount ?? '';
+			currency = editTxn.currency ?? currencies[0] ?? 'THB';
+			recurrence = editTxn.recurrence ?? 'NEVER';
 
-		if (editTxn.ends && editTxn.ends !== 'NEVER') {
-			endsType = 'ON';
-			endsOn = toInputDate(editTxn.ends);
+			if (editTxn.ends && editTxn.ends !== 'NEVER') {
+				endsType = 'ON';
+				endsOn = toInputDate(editTxn.ends);
+			} else {
+				endsType = 'NEVER';
+			}
+			receiptFile = null;
 		} else {
+			// add mode → reset clean
+			singleValue = 'green'; // or 'red' if you prefer Expense default
+			categorySel = '';
+			date = new Date().toISOString().slice(0, 10);
+			note = '';
+			amount = '';
+			currency = currencies[0] ?? 'THB';
+			recurrence = 'NEVER';
 			endsType = 'NEVER';
+			endsOn = new Date().toISOString().slice(0, 10);
+			receiptFile = null;
 		}
-		receiptFile = null;
 	});
 
 	$effect(() => {
@@ -192,7 +198,7 @@
 		});
 	}
 
-	const submitLabel = $derived(editTxn ? 'Update Transaction' : '+ Add Transaction');
+	const submitLabel = $derived(editTxn ? 'Update Transaction' : 'Add Transaction');
 </script>
 
 <svelte:window on:keydown={(e) => open && e.key === 'Escape' && close()} />
@@ -245,7 +251,7 @@
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Row 1 -->
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-12">
-					<div class="md:col-span-4">
+					<div class="md:col-span-3">
 						<label class="mb-1 block text-sm text-gray-600 dark:text-gray-300">
 							Category
 							<div class="flex items-center rounded-2xl ring-1 ring-gray-300 dark:ring-gray-700">
