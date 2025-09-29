@@ -53,6 +53,7 @@
 		"vitest-browser-svelte": "^0.1.0"
 	},
 	"dependencies": {
+		"@iconify/svelte": "^5.0.2",
 		"svelte-awesome-color-picker": "^4.0.2"
 	}
 }

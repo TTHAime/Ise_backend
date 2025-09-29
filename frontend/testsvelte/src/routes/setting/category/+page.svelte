@@ -1,9 +1,22 @@
 <script lang="ts">
     import  ColorPicker  from 'svelte-awesome-color-picker';
     import { colord, Colord } from 'colord'; //color library
+    import IconModal from '$lib/components/IconModal.svelte';
+	import Icon from '@iconify/svelte';
+
+
     let color = $state(colord('#E74C3C')); //default color
     let openPickColor = $state(false);  //color picker toggle
-    type Category = { id: string; name: string; color: string; count: number };
+    type Category = { id: string; name: string; color: string; count: number; icon?: string; type?: 'income' | 'expense' }; //category type
+
+    // Icon Picker
+    let openIconModal = $state(false); //icon modal toggle
+    let icon = $state('lucide:wallet') //selected icon
+    type Kind = 'iconify' | 'emoji' |  'url' | 'invalid'; //icon type
+    const iconifyRegex = /^[a-z0-9-]+$/i; //name format regex
+    const emojiRegex = /\p{Extended_Pictographic}/u; //single emoji character regex
+
+    let iconType: Kind = $derived(classifyIcon(icon).kind);
 
     let categories = $state<Category[]>([
         { id: '1', name: 'เงินเดือน',   color: '#2ecc71', count: 3 },
@@ -20,6 +33,45 @@
         openPickColor = false;
     }
 
+    function usHttpUrl(url: string): boolean { //validate URL
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch {
+            return false;
+        }
+    }
+
+    function classifyIcon(v: string): {kind: Kind; value?: string;} { //classify icon type
+        const value = (v ?? '').trim();
+        if(!value) return {kind: 'invalid'};
+
+        //iconify icon (prefix:name)
+        const parts = value.split(':');
+        if(parts.length === 2) {
+            const [prefix, name] = parts;
+            if(iconifyRegex.test(name)) {
+                return {kind: 'iconify', value: `${prefix}:${name}`.toLowerCase()};
+            }
+        }
+
+        //emoji (single emoji character)
+        if(emojiRegex.test(value)) {
+            return {kind: 'emoji', value};
+        }
+
+        //url (valid http/https URL or data image)
+        if(usHttpUrl(value) || /^data:image\/[a-z.+-]+;base64,/i.test(value)) { //data:image/png;base64,... (e.g. data:image/jpeg;base64,/9j/…) 
+            return {kind: 'url', value};
+        }
+
+        return {kind: 'invalid'};
+    }
+
+    function handlePickIcon(value: string) { //handle icon pick
+        icon = value;
+    }
+
 </script>
 
 <svelte:window onscroll={closeOnScroll} onkeydown={(e) => {if(openPickColor && e.key === 'Escape') openPickColor = false;}}></svelte:window>
@@ -29,7 +81,7 @@
     <div class="flex flex-wrap justify-start items-start w-full"> <!--header-->
         <div class="mt-6 items-start"> 
             <div> <!--Icon Color-->
-                <label for="icon-label" class="block text-sm text-neutral-500">Icon</label>
+                <label for="icon-label" class="block text-sm text-neutral-500">Color</label>
 
                 <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openPickColor = !openPickColor; }}>
                     <!-- <ColorPicker bind:color /> -->
@@ -40,6 +92,28 @@
                     <div class="absolute z-50 mt-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 shadow-lg">
                         <ColorPicker bind:color />
                     </div>
+                {/if}
+            </div>
+        </div>
+
+        <div class="mt-6 ml-5 items-start"> 
+            <div> <!-- Icon picker -->
+                <label for="icon-label" class="block text-sm text-neutral-500">Icon</label>
+
+                <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openIconModal = !openIconModal; }}>
+                    {#if iconType === 'iconify'}
+                        <Icon icon={icon} class="w-10 h-10 text-neutral-800" aria-hidden={true} />
+                    {:else if iconType === 'emoji'}
+                        <span class="text-3xl">{icon}</span>
+                    {:else if iconType === 'url'}
+                        <img src={icon} alt="Selected Icon" class="w-10 h-10 object-contain rounded" onerror={(e) => (e.target as HTMLImageElement).src = ''} />
+                    {:else}
+                        <Icon icon="lucide:question-mark-circle" class="w-10 h-10 text-neutral-300" aria-hidden={true} />
+                    {/if}
+                </button>
+                {#if openIconModal}
+                    <div class="fixed inset-0 z-40" onclick={() => (openIconModal = false)} aria-hidden="true"></div>
+                    <IconModal open={openIconModal} onPick={handlePickIcon} onClose={() => {openIconModal = false}} />
                 {/if}
             </div>
         </div>
