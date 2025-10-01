@@ -83,7 +83,7 @@
 
 	function navigateToHome() {
 		event?.preventDefault();
-        goto('home');
+        goto('/home');
     }
 	
 	function close() {

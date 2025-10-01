@@ -12,7 +12,9 @@
     let url = $state(''); //url input
     let selected: string | null = $state(null);
 
-
+    //Query parameters
+    const limit = 60; //icons per page
+    
     //curated icons (a small selection of popular icons)
     const curated = [
         'lucide:wallet', 'lucide:shopping-bag', 'lucide:utensils', 'lucide:bus',
@@ -37,7 +39,7 @@
 
     
     async function searchIcons(reset = true){ //search icons from iconify API
-        if(!searchQuery.trim()) {searchResults = []; hasMore = false; return;}
+        if(!searchQuery.trim()) {searchResults = []; hasMore = false; return;} //clear results if query empty
         loading = true;
         if(reset) {
             page = 1;
@@ -46,11 +48,16 @@
 
         //use Iconify API to search for icons with limit icons per page by defined parameters
         const params = new URLSearchParams({
-            query: searchQuery.trim(),          //search term
-            limit: '60',                        //icons per page (max results returned)
-            page: page.toString(),              //Which page of results
-            collections: iconFilter.join(','),   //filter by specific icon sets
+            query: searchQuery.trim(),                      //search term
+            limit: limit.toString(),                        //icons per page (max results returned)
+            start: ((page - 1) * limit).toString(),         //pagination start index
         });
+
+        if(iconFilter.length > 0) {                         //apply prefix filter if defined
+            params.set('prefix', iconFilter[0]);            //filter by first prefix (if only one)
+        }else if(iconFilter.length > 1) {
+            params.set('prefixes', iconFilter.join(','));   //filter by multiple prefixes
+        }
 
         const response = await fetch(`https://api.iconify.design/search?${params.toString()}`);     
         const data = await response.json().catch(() => null);                                       //parse JSON response catch errors

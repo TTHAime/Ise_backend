@@ -25,7 +25,6 @@
 
 	async function login() {
 		authShow = false;
-		goto('/home');
 		refreshUser();
 	}
 
