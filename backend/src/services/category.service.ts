@@ -3,7 +3,7 @@ import {
   GetCategoriesParams,
   UpdateCategoryParams,
 } from '../controllers/z-schema/category.schema';
-import { NOT_FOUND } from '../libs/http';
+import { BAD_REQUEST, NOT_FOUND } from '../libs/http';
 import { prisma } from '../libs/prisma';
 import appAssert from '../utils/appAssert';
 
@@ -118,7 +118,39 @@ export const getDefaultCategories = async () => {
     { name: 'Other Income', color: '#81ECEC', icon: '💸', type: 'INCOME' },
   ];
 };
+export const setDefaultCategories = async (userId: string) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+  appAssert(user, BAD_REQUEST, 'User not found');
 
+  await prisma.category.deleteMany({
+    where: { userId },
+  });
+
+  const defaultCategories = await getDefaultCategories();
+  const categories = await prisma.category.createMany({
+    data: defaultCategories.map(category => ({
+      name: category.name,
+      color: category.color,
+      icon: category.icon,
+      type: category.type as 'INCOME' | 'EXPENSE',
+      userId: userId,
+    })),
+    skipDuplicates: true,
+  });
+
+  const createdCategories = await prisma.category.findMany({
+    where: { userId },
+    select: selectCategory,
+    orderBy: [{ type: 'asc' }, { name: 'asc' }],
+  });
+
+  return {
+    count: categories.count,
+    categories: createdCategories,
+  };
+};
 export const updateCategory = async (
   id: string,
   userId: string,

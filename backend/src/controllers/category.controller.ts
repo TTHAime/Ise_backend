@@ -5,7 +5,7 @@ import {
   deleteCategory,
   getCategoies,
   getCategoryById,
-  getDefaultCategories,
+  setDefaultCategories,
   updateCategory,
 } from '../services/category.service';
 import appAssert from '../utils/appAssert';
@@ -51,10 +51,14 @@ export const getCategoryByIdHandler = catchErrors(async (req, res) => {
   return res.status(OK).json({ category });
 });
 
-export const getDefaultCategoriesHandler = catchErrors(async (req, res) => {
-  const defaultCategories = await getDefaultCategories();
-
-  return res.status(OK).json({ categories: defaultCategories });
+export const setDefaultCategoriesHandler = catchErrors(async (req, res) => {
+  const userId = req.userId;
+  appAssert(userId, BAD_REQUEST, 'User not authenticated');
+  const result = await setDefaultCategories(userId);
+  return res.status(OK).json({
+    message: `Successfully created ${result.count} default categories`,
+    data: result.categories,
+  });
 });
 
 export const updateCategoryHandler = catchErrors(async (req, res) => {

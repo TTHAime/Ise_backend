@@ -15,15 +15,23 @@ enum TransactionType {
   EXPENSE   // รายจ่าย
 }
 
+enum Provider {
+  CREDENTIALS
+  GOOGLE
+}
+
 /* ========= Models ========= */
 
 model User {
   id              String      @id @default(cuid())
   email           String      @unique
-  passwordHash    String
+  passwordHash    String?
   displayName     String?
   profileImage    String?     // CLoundinary Url 
   profileImagePublicId   String?  // CLoundinary public_id for delete picture
+
+  provider  Provider @default(CREDENTIALS)
+  googleId  String?  @unique
 
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

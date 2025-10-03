@@ -64,7 +64,9 @@ export const changePassword = async (
     where: { id: userId },
   });
   appAssert(user, BAD_REQUEST, 'User not found');
-
+  if (!user.passwordHash) {
+    appAssert(false, UNAUTHORIZED, 'Invalid email or password');
+  }
   const isCurrentPasswordValid = await compareValue(
     data.currentPassword,
     user.passwordHash

@@ -4,7 +4,7 @@ import {
   deleteCategoryHandler,
   getCategoriesHandler,
   getCategoryByIdHandler,
-  getDefaultCategoriesHandler,
+  setDefaultCategoriesHandler,
   updateCategoryHandler,
 } from '../controllers/category.controller';
 
@@ -12,7 +12,7 @@ const categoryRoutes = Router();
 
 categoryRoutes.post('/', createCategoryHandler);
 categoryRoutes.get('/', getCategoriesHandler);
-categoryRoutes.get('/defaults', getDefaultCategoriesHandler);
+categoryRoutes.post('/defaults', setDefaultCategoriesHandler);
 categoryRoutes.get('/:id', getCategoryByIdHandler);
 categoryRoutes.patch('/:id', updateCategoryHandler);
 categoryRoutes.delete('/:id', deleteCategoryHandler);

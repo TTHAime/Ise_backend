@@ -4,6 +4,7 @@ import { compareValue, hashValue } from '../utils/bcrypt';
 import { addDays, addHours, addYears, subMinutes } from 'date-fns';
 import appAssert from '../utils/appAssert';
 import {
+  BAD_GATEWAY,
   CONFLICT,
   INTERNAL_SERVER_ERROR,
   NOT_FOUND,
@@ -23,7 +24,8 @@ import {
 } from '../utils/emailTemplate';
 import { config } from '../libs/config';
 import { selectUserWithoutPassword } from '../utils/omitPassword';
-import { getDefaultCategories } from './category.service';
+import { OAuth2Client, TokenPayload } from 'google-auth-library';
+import { setDefaultCategories } from './category.service';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -55,19 +57,6 @@ export const createAccount = async (data: CreateAccountParams) => {
       type: VerificationCodeType.EmailVerification,
       expiresAt: addYears(new Date(), 1),
     },
-  });
-
-  // Create default categories for new user
-  const defaultCategories = await getDefaultCategories();
-  await prisma.category.createMany({
-    data: defaultCategories.map(category => ({
-      name: category.name,
-      color: category.color,
-      icon: category.icon,
-      type: category.type as 'INCOME' | 'EXPENSE',
-      userId: user.id,
-    })),
-    skipDuplicates: true, // ป้องกันการสร้างซ้ำ
   });
 
   const url = `${config.APP_ORIGIN}/email/verify/${verificationCode.id}`;
@@ -118,6 +107,7 @@ export const loginUser = async ({
   });
 
   appAssert(user, UNAUTHORIZED, 'Invalid email or password');
+  appAssert(user.passwordHash, UNAUTHORIZED, 'Invalid email or password');
 
   const isPasswordValid = await compareValue(password, user.passwordHash);
   appAssert(isPasswordValid, UNAUTHORIZED, 'Invalid email or password');
@@ -314,3 +304,102 @@ export const resetPassword = async ({
     user: updatedUser,
   };
 };
+
+const getOAuthClient = () =>
+  new OAuth2Client({
+    clientId: config.GOOGLE_CLIENT_ID,
+    clientSecret: config.GOOGLE_CLIENT_SECRET,
+    redirectUri: config.OAUTH_REDIRECT_URI,
+  });
+
+export function createGoogleAuthUrl(state?: string) {
+  const client = getOAuthClient();
+  return client.generateAuthUrl({
+    access_type: 'offline',
+    prompt: 'consent',
+    scope: ['openid', 'email', 'profile'],
+    state,
+  });
+}
+
+export async function exchangeCodeAndGetProfile(code: string) {
+  const client = getOAuthClient();
+  const { tokens } = await client.getToken(code);
+
+  appAssert(tokens.id_token, BAD_GATEWAY, 'Missing id_token from Google');
+
+  const ticket = await client.verifyIdToken({
+    idToken: tokens.id_token,
+    audience: config.GOOGLE_CLIENT_ID,
+  });
+  const payload = ticket.getPayload() as TokenPayload;
+
+  return {
+    googleId: payload.sub!,
+    email: payload.email ?? '',
+    emailVerified: !!payload.email_verified,
+    name: payload.name ?? '',
+    picture: payload.picture ?? '',
+    tokens,
+  };
+}
+
+export async function loginWithGoogleProfile(p: {
+  googleId: string;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  picture: string;
+  userAgent?: string;
+}) {
+  appAssert(
+    p.email && p.emailVerified,
+    UNAUTHORIZED,
+    'Google email is not verified'
+  );
+
+  // หา user ด้วย googleId หรือ email
+  let user = await prisma.user.findFirst({
+    where: { OR: [{ googleId: p.googleId }, { email: p.email }] },
+  });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email: p.email,
+        displayName: p.name || undefined,
+        profileImage: p.picture || undefined,
+        provider: 'GOOGLE',
+        googleId: p.googleId,
+        verified: true,
+      },
+    });
+    await setDefaultCategories(user.id);
+  } else if (!user.googleId) {
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        googleId: p.googleId,
+        provider: 'GOOGLE',
+        verified: true,
+        ...(p.name ? { displayName: p.name } : {}),
+        ...(p.picture ? { profileImage: p.picture } : {}),
+      },
+    });
+  }
+
+  const session = await prisma.session.create({
+    data: {
+      userId: user.id,
+      userAgent: p.userAgent,
+    },
+  });
+
+  const accessToken = signToken({ userId: user.id, sessionId: session.id });
+  const refreshToken = signToken(
+    { sessionId: session.id },
+    refreshTokenSignOptions
+  );
+
+  return { user, accessToken, refreshToken };
+}

@@ -1,20 +1,26 @@
-import { CREATED, OK, UNAUTHORIZED } from '../libs/http';
+import { BAD_REQUEST, CREATED, OK, UNAUTHORIZED } from '../libs/http';
 import { prisma } from '../libs/prisma';
 import {
   createAccount,
+  createGoogleAuthUrl,
+  exchangeCodeAndGetProfile,
   loginUser,
+  loginWithGoogleProfile,
   refreshUserAccessToken,
   resetPassword,
   sendPasswordResetEmail,
   verifyEmail,
 } from '../services/auth.service';
+import { setDefaultCategories } from '../services/category.service';
 import appAssert from '../utils/appAssert';
 import catchErrors from '../utils/catchErrors';
 import {
   clearAuthCookie,
+  clearOAuthStateCookie,
   getAccessTokenCookieOptions,
   getRefreshTokenCookieOptions,
   setAuthCookie,
+  setOAuthStateCookie,
 } from '../utils/cookie';
 import { AccessTokenPayload, verifyToken } from '../utils/jwt';
 import {
@@ -32,6 +38,7 @@ export const registerHandler = catchErrors(async (req, res) => {
   });
   // call service
   const { user, accessToken, refreshToken } = await createAccount(request);
+  await setDefaultCategories(user.id);
   // return response
   return setAuthCookie({ res, accessToken, refreshToken })
     .status(CREATED)
@@ -114,5 +121,55 @@ export const resetPasswordHandler = catchErrors(async (req, res) => {
 
   return clearAuthCookie(res).status(OK).json({
     message: 'Password reset successful',
+  });
+});
+
+export const googleAuthStartHandler = catchErrors(async (req, res) => {
+  const state = Math.random().toString(36).slice(2);
+  setOAuthStateCookie(res, state);
+
+  const url = createGoogleAuthUrl(state);
+  // Server-side redirect
+  return res.redirect(303, url);
+  // return res.status(OK).json({ url });
+});
+
+export const googleAuthCallbackHandler = catchErrors(async (req, res) => {
+  const { code, state } = req.query as { code?: string; state?: string };
+  appAssert(code, BAD_REQUEST, 'Missing code');
+
+  // ตรวจ state ป้องกัน CSRF (ปลอดภัย)
+  const stateCookie = req.cookies?.g_state;
+  if (stateCookie && state) {
+    // ถ้ามี cookie และ state ให้ตรวจให้ตรงกัน
+    appAssert(state === stateCookie, BAD_REQUEST, 'Invalid state');
+  } else if (!stateCookie) {
+    // ถ้าไม่มี cookie เลย ให้เตือน
+    console.warn('Missing state cookie - possible CSRF risk');
+  }
+
+  const profile = await exchangeCodeAndGetProfile(code!);
+  const { user, accessToken, refreshToken } = await loginWithGoogleProfile({
+    googleId: profile.googleId,
+    email: profile.email,
+    emailVerified: profile.emailVerified,
+    name: profile.name,
+    picture: profile.picture,
+    userAgent: req.headers['user-agent'],
+  });
+
+  clearOAuthStateCookie(res);
+  setAuthCookie({ res, accessToken, refreshToken });
+
+  return res.status(OK).json({
+    message: 'Google login successful',
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      profileImage: user.profileImage,
+      provider: user.provider,
+      verified: user.verified,
+    },
   });
 });

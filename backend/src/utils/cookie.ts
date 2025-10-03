@@ -3,23 +3,45 @@ import { config } from '../libs/config';
 import { addDays, addMinutes } from 'date-fns';
 
 export const REFRESH_PATH = '/auth/refresh';
-const secure = config.NODE_ENV !== 'development';
 
-const defaultCookieOptions: CookieOptions = {
-  sameSite: 'strict',
-  httpOnly: true,
-  secure,
+const isDev = config.NODE_ENV === 'development';
+
+// - Dev: sameSite='lax', secure=false (สะดวกทดสอบ, ส่ง cookie ใน top-level redirect เช่น OAuth ได้)
+// - Prod: sameSite='none', secure=true (รองรับ cross-site fetch + OAuth redirect)
+
+const decideSameSite = (): Exclude<
+  CookieOptions['sameSite'],
+  boolean | undefined
+> => (isDev ? 'lax' : 'none');
+const decideSecure = () => !isDev;
+
+// (ออปชัน) หากคุณมีโดเมนหลัก เช่น .example.com ให้ตั้งผ่าน env: COOKIE_DOMAIN
+const withDomain = (opts: CookieOptions): CookieOptions => {
+  const domain = process.env.COOKIE_DOMAIN;
+  return domain ? { ...opts, domain } : opts;
 };
 
-export const getAccessTokenCookieOptions = (): CookieOptions => ({
-  ...defaultCookieOptions,
-  expires: addMinutes(new Date(), 15),
+const defaultCookieOptions: CookieOptions = withDomain({
+  sameSite: decideSameSite(),
+  httpOnly: true,
+  secure: decideSecure(),
 });
-export const getRefreshTokenCookieOptions = (): CookieOptions => ({
-  ...defaultCookieOptions,
-  expires: addDays(new Date(), 30),
-  path: REFRESH_PATH,
-});
+
+// Access Token: ใช้ทั้งแอป
+export const getAccessTokenCookieOptions = (): CookieOptions =>
+  withDomain({
+    ...defaultCookieOptions,
+    path: '/',
+    expires: addMinutes(new Date(), 15),
+  });
+
+// Refresh Token: ผูกกับเส้นทาง refresh เท่านั้น
+export const getRefreshTokenCookieOptions = (): CookieOptions =>
+  withDomain({
+    ...defaultCookieOptions,
+    expires: addDays(new Date(), 30),
+    path: REFRESH_PATH,
+  });
 
 type Params = {
   res: Response;
@@ -33,6 +55,23 @@ export const setAuthCookie = ({ res, accessToken, refreshToken }: Params) =>
     .cookie('refreshToken', refreshToken, getRefreshTokenCookieOptions());
 
 export const clearAuthCookie = (res: Response) =>
-  res.clearCookie('accessToken').clearCookie('refreshToken', {
-    path: REFRESH_PATH,
-  });
+  res
+    .clearCookie('accessToken', { path: '/' })
+    .clearCookie('refreshToken', { path: REFRESH_PATH });
+
+// ใช้สำหรับ Google OAuth state (กัน CSRF) — แนะนำอย่างยิ่ง
+export const setOAuthStateCookie = (res: Response, state: string) =>
+  res.cookie(
+    'g_state',
+    state,
+    withDomain({
+      httpOnly: true,
+      sameSite: decideSameSite(), // 'lax' (dev) / 'none' (prod)
+      secure: decideSecure(),
+      maxAge: 5 * 60 * 1000, // 5 นาที
+      path: '/auth/google',
+    })
+  );
+
+export const clearOAuthStateCookie = (res: Response) =>
+  res.clearCookie('g_state', { path: '/auth/google' });
