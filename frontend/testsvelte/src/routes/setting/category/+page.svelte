@@ -5,10 +5,10 @@
 	import Icon from '@iconify/svelte';
 	import { Modal } from 'flowbite-svelte';
     import { onMount } from 'svelte';
+	import { updated } from '$app/state';
 
     //Icon and Color Picker
     let color = $state(colord('#E74C3C')); //default color
-    let colorUpdate = $state(colord('#E74C3C')); //default color for update
     let openPickColor = $state(false);  //color picker toggle
     let openPickColorUpdate = $state(false);  //color picker toggle for update
 
@@ -17,22 +17,18 @@
 
     // Category form
     let name = $state(''); //category name
-    let nameUpdate = $state(''); //category name for update
     let type: 'INCOME' | 'EXPENSE' = $state('EXPENSE'); //category type
-    let typeUpdate: 'INCOME' | 'EXPENSE' = $state('EXPENSE'); //category type for update
 
     
     // Icon Picker
     let openIconModal = $state(false); //icon modal toggle
     let openIconModalUpdate = $state(false); //icon modal toggle for update
     let icon = $state('lucide:wallet') //selected icon
-    let iconUpdate = $state('lucide:wallet') //selected icon for update
     type Kind = 'iconify' | 'emoji' |  'url' | 'invalid'; //icon type
     const iconFilter = ['lucide', 'heroicons', 'tabler'];
     const iconifyRegex = /^[a-z0-9-]+$/i; //name format regex
     const emojiRegex = /\p{Extended_Pictographic}/u; //single emoji character regex
     let iconType: Kind = $derived(classifyIcon(icon).kind);
-    let iconTypeUpdate: Kind = $derived(classifyIcon(iconUpdate).kind);
     
     //error handling
     let isError: boolean = $state(false); //error modal toggle
@@ -45,7 +41,21 @@
 
     //Update category
     let updatingCategoryId: string | null = $state(null); //id of category being updated, null if adding new category
+    let nameUpdateCategory: string = $state(''); //name of category being updated
+    let typeUpdateCategory: 'INCOME' | 'EXPENSE' = $state('EXPENSE'); //type of category being updated
+    let iconUpdateCategory: string = $state('lucide:wallet'); //icon of category being updated
+    let iconTypeUpdate: Kind = $derived(classifyIcon(iconUpdateCategory).kind);
+    let colorUpdateCategory: Colord = $state(colord('#E74C3C')); //color of category being updated
     let isUpdateModalOpen: boolean = $state(false); //update modal toggle
+    let updatedSuccess: boolean = $state(false); //success update category modal toggle
+    let timeUpdatedSuccess : ReturnType<typeof setTimeout> | null = null;
+
+    //Delete Category
+    let deletingCategoryId: string = $state('');
+    let deletingCategoryName : string = $state('');
+    let openConfirmDeleteModal: boolean = $state(false); //delete confirmation modal toggle
+    let deleteSuccess: boolean = $state(false); //success delete category modal toggle
+    let timeDeleteSuccess : ReturnType<typeof setTimeout> | null = null; //timeout for delete success message
     
     
     $effect(() => { //auto close modals after 3 seconds both error and success added category
@@ -62,6 +72,20 @@
                 isError = false;
             },3000);
         }else if(errorTimeOut){ clearTimeout(errorTimeOut); errorTimeOut = null;}
+
+        if(updatedSuccess && !isError){
+            if(timeUpdatedSuccess) clearTimeout(timeUpdatedSuccess);
+            timeUpdatedSuccess = setTimeout(()=> {
+                updatedSuccess = false;
+            },3000);
+        }else if(timeUpdatedSuccess){ clearTimeout(timeUpdatedSuccess); timeUpdatedSuccess = null;}
+
+        if(deleteSuccess && !isError){
+            if(timeDeleteSuccess) clearTimeout(timeDeleteSuccess);
+            timeDeleteSuccess = setTimeout(()=> {
+                deleteSuccess = false;
+            },3000);
+        }else if(timeDeleteSuccess){ clearTimeout(timeDeleteSuccess); timeDeleteSuccess = null;}
     });
     
 
@@ -114,7 +138,7 @@
     }
 
     function handlePickIconUpdate(value: string) { //handle icon pick for update
-        iconUpdate = value;
+        iconUpdateCategory = value;
     }
 
     //Add Category API call here
@@ -195,7 +219,6 @@
             return;
         }
 
-        console.log('Fetched categories:', data.categories);
         expenseCategories = data.categories.map((c: any) => ({
             id: c.id,
             name: c.name,
@@ -216,6 +239,86 @@
     onMount(() => {
         allFetchCategories(); //fetch categories on mount
     });
+
+    function openUpdateCategoryModal(cat: CompleteCategory){ //open update category modal and set values
+        updatingCategoryId = cat.id;
+        nameUpdateCategory = cat.name;
+        typeUpdateCategory = cat.type;
+        iconUpdateCategory = cat.icon ?? 'lucide:wallet';
+        colorUpdateCategory = colord(cat.color);
+        isUpdateModalOpen = true;
+    }
+
+    function closeUpdateCategoryModal(){ //Close update category modal and reset values
+        updatingCategoryId = null;
+        nameUpdateCategory = '';
+        typeUpdateCategory = 'EXPENSE';
+        iconUpdateCategory = 'lucide:wallet';
+        colorUpdateCategory = colord('#E74C3C');
+        isUpdateModalOpen = false;
+    }
+
+    async function updateCategory(){
+        if(updatingCategoryId === null) return; //no category to update
+        let updateData = {
+            name: nameUpdateCategory.trim(),
+            color: colorUpdateCategory.toHex(),
+            icon : iconTypeUpdate === 'invalid'? 'lucide:wallet' : iconUpdateCategory,
+            type: typeUpdateCategory
+        }
+
+        const response = await fetch(`http://localhost:4000/category/${updatingCategoryId}`,{
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updateData)
+        })
+
+        if(!response.ok){
+            const data = await response.json().catch(() => null);
+            isError = true; //show error modal
+            if(Array.isArray(data?.errors)){ //validation errors from backend
+                errorMsg = data.errors.map((e: any) => e.message).join('; \n'); //combine all error messages
+            }
+            return;
+        }
+        updatedSuccess = true; //show success modal
+        allFetchCategories(); //refresh category list
+        closeUpdateCategoryModal(); //close update modal
+    }
+
+
+    async function deleteCategory(id: string){
+        if(id === null || id === '') return;
+        const response = await fetch(`http://localhost:4000/category/${id}`,{
+            method: 'DELETE',
+            credentials: 'include'
+        })
+        if(!response.ok){
+            errorMsg = 'Failed to delete category';
+            isError = true;
+            return;
+        }
+        deleteSuccess = true;
+        closeCategoryDeleteModal();
+        allFetchCategories();
+    }
+
+    function deleteCategoryWithConfirmation(cat: CompleteCategory){
+        if(cat === null){
+            errorMsg = 'Failed to delete this Category';
+            isError = true;
+        }
+        deletingCategoryId = cat.id;
+        deletingCategoryName = cat.name;
+        openConfirmDeleteModal = true;
+    }
+    
+    function closeCategoryDeleteModal(){
+        deletingCategoryId = '';
+        deletingCategoryName = '';
+        openConfirmDeleteModal = false;
+    }
 
 </script>
 
@@ -310,8 +413,8 @@
                         </div>
                         
                         <div class="ml-auto w-40 text-right text-neutral-500"> {c.count} {c.count === 1? 'transaction' : 'transactions'}</div>
-                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{isUpdateModalOpen = true}}>Edit</button>
-                        <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{}}>Delete</button>
+                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{openUpdateCategoryModal(c);}}>Edit</button>
+                        <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{deleteCategoryWithConfirmation(c)}}>Delete</button>
                     </li>
                 {/each}
             </ul>
@@ -340,8 +443,8 @@
                             {c.name} <!--Category name-->
                         </div>
                         <div class="ml-auto w-40 text-right text-neutral-500"> {c.count} {c.count === 1? 'transaction' : 'transactions'}</div>
-                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{isUpdateModalOpen = true}}>Edit</button>
-                        <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{}}>Delete</button>
+                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{openUpdateCategoryModal(c)}}>Edit</button>
+                        <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{deleteCategoryWithConfirmation(c)}}>Delete</button>
                     </li>
                 {/each}
             </ul>
@@ -360,20 +463,20 @@
         </Modal>
     {/if}
     {#if isUpdateModalOpen}
-        <Modal open={isUpdateModalOpen} onclose={() => isUpdateModalOpen = false} title="Edit Category" size="lg" class="overflow-visible" >
-            <div class="flex flex-wrap justify-start items-start w-full"> <!--header-->
+        <Modal open={isUpdateModalOpen} onclose={() => closeUpdateCategoryModal()} title="Edit Category" size="lg" class="overflow-visible" >
+            <div class="flex flex-wrap justify-start items-center w-full h-full pl-5"> <!--header-->
                 <div class="mt-6 items-start"> 
                     <div> <!--Icon Color-->
                         <label for="icon-label" class="block text-sm text-neutral-500">Color</label>
 
                         <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openPickColorUpdate = !openPickColorUpdate; }}>
                             <!-- <ColorPicker bind:color /> -->
-                            <span class="block w-10 h-10 rounded-full ring-1 ring-black/20" style={`background:${colorUpdate.toHex()}`}></span>
+                            <span class="block w-10 h-10 rounded-full ring-1 ring-black/20" style={`background:${colorUpdateCategory.toHex()}`}></span>
                         </button>
                         {#if openPickColorUpdate}
                             <div class="fixed inset-0 z-40" onclick={() => (openPickColorUpdate = false)} aria-hidden="true"></div>
                             <div class="absolute z-50 mt-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 shadow-lg">
-                                <ColorPicker bind:color={colorUpdate} />
+                                <ColorPicker bind:color={colorUpdateCategory} />
                             </div>
                         {/if}
                     </div>
@@ -385,11 +488,11 @@
 
                         <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openIconModalUpdate = !openIconModalUpdate; }}>
                             {#if iconTypeUpdate === 'iconify'}
-                                <Icon icon={iconUpdate} class="w-10 h-10 text-neutral-800" aria-hidden={true} />
+                                <Icon icon={iconUpdateCategory} class="w-10 h-10 text-neutral-800" aria-hidden={true} />
                             {:else if iconTypeUpdate === 'emoji'}
-                                <span class="text-3xl">{iconUpdate}</span>
+                                <span class="text-3xl">{iconUpdateCategory}</span>
                             {:else if iconTypeUpdate === 'url'}
-                                <img src={iconUpdate} alt="Selected Icon" class="w-10 h-10 object-contain rounded" onerror={(e) => (e.target as HTMLImageElement).src = ''} />
+                                <img src={iconUpdateCategory} alt="Selected Icon" class="w-10 h-10 object-contain rounded" onerror={(e) => (e.target as HTMLImageElement).src = ''} />
                             {:else}
                                 <Icon icon="lucide:question-mark-circle" class="w-10 h-10 text-neutral-300" aria-hidden={true} />
                             {/if}
@@ -402,14 +505,14 @@
                 </div>
                 <div class="mt-6 items-start justify-start ml-auto md:ml-10"> <!--Category Name input-->
                     <label for="cat-name" class="block text-sm text-neutral-500">Name</label>
-                    <input type="text" name="cat-name" id="category" class="w-[400px] h-[50px] mt-3 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60" placeholder="Category Name" bind:value={name}/>
+                    <input type="text" name="cat-name" id="category" class="w-[400px] h-[50px] mt-3 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60" placeholder="Category Name" bind:value={nameUpdateCategory}/>
                 </div>
 
                 <div> <!--Category type-->
                     <div class="mt-6 justify-start md:ml-10 ml-auto items-start">
                         <label for="cat-type" class="block text-sm text-neutral-500">Type</label>
                         <div class="w-[150px] mt-3 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60">
-                            <select name="cat-type" id="cat-type" class="w-full outline-none text-neutral-800" bind:value={type}>
+                            <select name="cat-type" id="cat-type" class="w-full outline-none text-neutral-800" bind:value={typeUpdateCategory}>
                                 <option disabled selected value class="text-neutral-800/50">Select Type</option>
                                 <option value="EXPENSE" class=" text-neutral-800">Expense</option>
                                 <option value="INCOME" class=" text-neutral-800">Income</option>
@@ -418,12 +521,32 @@
                     </div>
                 </div>
 
-                <div class="ml-auto md:ml-10 mt-auto md:mt-14 items-center justify-start">
-                    <button class=" justify-center items-center bg-green-300 h-10 w-auto py-2 px-3 rounded-2xl shadow-sm hover:ring-1 hover:ring-black/15 hover:bg-green-400 hover:cursor-pointer font-semibold text-neutral-700" onclick={()=>{}}> <!--Add category button-->
+                <div class="w-full mt-10 mb-5 items-center justify-center md:px-[40vh]">
+                    <button class=" justify-center items-center bg-green-300 h-10 w-150px py-2 px-3 rounded-2xl shadow-sm hover:ring-1 hover:ring-black/15 hover:bg-green-400 hover:cursor-pointer font-semibold text-neutral-700" onclick={()=>{updateCategory()}}> <!--Add category button-->
                         Edit Category
                     </button>
                 </div>
             </div>
         </Modal>
     {/if}
+    {#if updatedSuccess}
+        <Modal open={updatedSuccess} onclose={() => updatedSuccess = false} title="Update successfully" size="sm">
+            <p class="text-sm text-green-600 font-mono">Category updated successfully!</p>
+        </Modal>
+    {/if}
+    {#if openConfirmDeleteModal}
+        <Modal open={openConfirmDeleteModal} onclose={() => openConfirmDeleteModal = false} title="Confirm category deletion" size="sm">
+            <div class="grid grid-cols-1 gap-4 items-center justify-center place-items-center">
+                <span>Are you sure you want to delete <strong class=" font-semibold text-rose-400">{deletingCategoryName}</strong> category?</span>
+                <button type="button" class="justify-center items-center bg-green-300 h-10 w-[20vh] py-2 px-3 rounded-2xl shadow-sm hover:ring-1 hover:ring-black/15 hover:bg-green-400 hover:cursor-pointer font-semibold text-neutral-700" 
+                onclick={()=> {deleteCategory(deletingCategoryId)}}>Confirm</button>
+            </div>
+        </Modal>
+    {/if}
+    {#if deleteSuccess}
+        <Modal open={deleteSuccess} onclose={() => deleteSuccess = false} title="Deleted successfully" size="sm">
+            <p class="text-sm text-green-600 font-mono">Category deleted successfully!</p>
+        </Modal>
+    {/if}
+    
 </div>
