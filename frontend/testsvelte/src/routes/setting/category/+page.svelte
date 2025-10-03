@@ -8,24 +8,31 @@
 
     //Icon and Color Picker
     let color = $state(colord('#E74C3C')); //default color
+    let colorUpdate = $state(colord('#E74C3C')); //default color for update
     let openPickColor = $state(false);  //color picker toggle
+    let openPickColorUpdate = $state(false);  //color picker toggle for update
 
     // Category types
     type CompleteCategory = {id: string; name: string; color: string; icon?: string; type: 'INCOME' | 'EXPENSE'; createedAt: string; updatedAt:string; count: number}; //category type with id and count
 
     // Category form
     let name = $state(''); //category name
+    let nameUpdate = $state(''); //category name for update
     let type: 'INCOME' | 'EXPENSE' = $state('EXPENSE'); //category type
+    let typeUpdate: 'INCOME' | 'EXPENSE' = $state('EXPENSE'); //category type for update
 
     
     // Icon Picker
     let openIconModal = $state(false); //icon modal toggle
+    let openIconModalUpdate = $state(false); //icon modal toggle for update
     let icon = $state('lucide:wallet') //selected icon
+    let iconUpdate = $state('lucide:wallet') //selected icon for update
     type Kind = 'iconify' | 'emoji' |  'url' | 'invalid'; //icon type
     const iconFilter = ['lucide', 'heroicons', 'tabler'];
     const iconifyRegex = /^[a-z0-9-]+$/i; //name format regex
     const emojiRegex = /\p{Extended_Pictographic}/u; //single emoji character regex
     let iconType: Kind = $derived(classifyIcon(icon).kind);
+    let iconTypeUpdate: Kind = $derived(classifyIcon(iconUpdate).kind);
     
     //error handling
     let isError: boolean = $state(false); //error modal toggle
@@ -35,6 +42,11 @@
     //Add category's attr
     let successAdded: boolean = $state(false); //success add category modal toggle
     let timeSuccess : ReturnType<typeof setTimeout> | null = null; //timeout for success message (Open add category success modal for 3 seconds)
+
+    //Update category
+    let updatingCategoryId: string | null = $state(null); //id of category being updated, null if adding new category
+    let isUpdateModalOpen: boolean = $state(false); //update modal toggle
+    
     
     $effect(() => { //auto close modals after 3 seconds both error and success added category
         if(successAdded && !isError){
@@ -58,7 +70,8 @@
     let expenseCategories: CompleteCategory[] = $derived<CompleteCategory[]>([]); //list of expense categories
 
     function closeOnScroll(){ //close color picker when scroll
-        openPickColor = false;
+        if(openPickColor) openPickColor = false;
+        if(openPickColorUpdate) openPickColorUpdate = false;
     }
 
     function usHttpUrl(url: string): boolean { //validate URL
@@ -98,6 +111,10 @@
 
     function handlePickIcon(value: string) { //handle icon pick
         icon = value;
+    }
+
+    function handlePickIconUpdate(value: string) { //handle icon pick for update
+        iconUpdate = value;
     }
 
     //Add Category API call here
@@ -293,7 +310,7 @@
                         </div>
                         
                         <div class="ml-auto w-40 text-right text-neutral-500"> {c.count} {c.count === 1? 'transaction' : 'transactions'}</div>
-                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{}}>Edit</button>
+                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{isUpdateModalOpen = true}}>Edit</button>
                         <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{}}>Delete</button>
                     </li>
                 {/each}
@@ -323,7 +340,7 @@
                             {c.name} <!--Category name-->
                         </div>
                         <div class="ml-auto w-40 text-right text-neutral-500"> {c.count} {c.count === 1? 'transaction' : 'transactions'}</div>
-                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{}}>Edit</button>
+                        <button class="p-2 rounded-lg bg-neutral-300 hover:bg-neutral-500 shadow-sm items-center" aria-label="Edit" onclick={()=>{isUpdateModalOpen = true}}>Edit</button>
                         <button class="p-2 rounded-lg bg-rose-200 hover:bg-rose-300 shadow-sm items-center" aria-label="Delete" onclick={()=>{}}>Delete</button>
                     </li>
                 {/each}
@@ -340,6 +357,73 @@
     {#if isError}
         <Modal open={isError} onclose={() => isError = false} title="Failed" size="sm">
             <p class="text-sm text-red-600 font-mono">{errorMsg}</p>
+        </Modal>
+    {/if}
+    {#if isUpdateModalOpen}
+        <Modal open={isUpdateModalOpen} onclose={() => isUpdateModalOpen = false} title="Edit Category" size="lg" class="overflow-visible" >
+            <div class="flex flex-wrap justify-start items-start w-full"> <!--header-->
+                <div class="mt-6 items-start"> 
+                    <div> <!--Icon Color-->
+                        <label for="icon-label" class="block text-sm text-neutral-500">Color</label>
+
+                        <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openPickColorUpdate = !openPickColorUpdate; }}>
+                            <!-- <ColorPicker bind:color /> -->
+                            <span class="block w-10 h-10 rounded-full ring-1 ring-black/20" style={`background:${colorUpdate.toHex()}`}></span>
+                        </button>
+                        {#if openPickColorUpdate}
+                            <div class="fixed inset-0 z-40" onclick={() => (openPickColorUpdate = false)} aria-hidden="true"></div>
+                            <div class="absolute z-50 mt-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 shadow-lg">
+                                <ColorPicker bind:color={colorUpdate} />
+                            </div>
+                        {/if}
+                    </div>
+                </div>
+
+                <div class="mt-6 ml-5 items-start"> 
+                    <div> <!-- Icon picker -->
+                        <label for="icon-label" class="block text-sm text-neutral-500">Icon</label>
+
+                        <button type="button" class="flex mt-3 w-[72px] h-[72px] rounded-2xl bg-white ring-1 ring-black/15 items-center justify-center hover:cursor-pointer" aria-label="Pick icon color" title="Pick icon color" onclick={() => { openIconModalUpdate = !openIconModalUpdate; }}>
+                            {#if iconTypeUpdate === 'iconify'}
+                                <Icon icon={iconUpdate} class="w-10 h-10 text-neutral-800" aria-hidden={true} />
+                            {:else if iconTypeUpdate === 'emoji'}
+                                <span class="text-3xl">{iconUpdate}</span>
+                            {:else if iconTypeUpdate === 'url'}
+                                <img src={iconUpdate} alt="Selected Icon" class="w-10 h-10 object-contain rounded" onerror={(e) => (e.target as HTMLImageElement).src = ''} />
+                            {:else}
+                                <Icon icon="lucide:question-mark-circle" class="w-10 h-10 text-neutral-300" aria-hidden={true} />
+                            {/if}
+                        </button>
+                        {#if openIconModalUpdate}
+                            <div class="fixed inset-0 z-40" onclick={() => (openIconModalUpdate = false)} aria-hidden="true"></div>
+                            <IconModal open={openIconModalUpdate} onPick={handlePickIconUpdate} onClose={() => {openIconModalUpdate = false}} />
+                        {/if}
+                    </div>
+                </div>
+                <div class="mt-6 items-start justify-start ml-auto md:ml-10"> <!--Category Name input-->
+                    <label for="cat-name" class="block text-sm text-neutral-500">Name</label>
+                    <input type="text" name="cat-name" id="category" class="w-[400px] h-[50px] mt-3 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60" placeholder="Category Name" bind:value={name}/>
+                </div>
+
+                <div> <!--Category type-->
+                    <div class="mt-6 justify-start md:ml-10 ml-auto items-start">
+                        <label for="cat-type" class="block text-sm text-neutral-500">Type</label>
+                        <div class="w-[150px] mt-3 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60">
+                            <select name="cat-type" id="cat-type" class="w-full outline-none text-neutral-800" bind:value={type}>
+                                <option disabled selected value class="text-neutral-800/50">Select Type</option>
+                                <option value="EXPENSE" class=" text-neutral-800">Expense</option>
+                                <option value="INCOME" class=" text-neutral-800">Income</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ml-auto md:ml-10 mt-auto md:mt-14 items-center justify-start">
+                    <button class=" justify-center items-center bg-green-300 h-10 w-auto py-2 px-3 rounded-2xl shadow-sm hover:ring-1 hover:ring-black/15 hover:bg-green-400 hover:cursor-pointer font-semibold text-neutral-700" onclick={()=>{}}> <!--Add category button-->
+                        Edit Category
+                    </button>
+                </div>
+            </div>
         </Modal>
     {/if}
 </div>
