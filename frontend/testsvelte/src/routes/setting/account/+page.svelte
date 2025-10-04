@@ -1,16 +1,25 @@
 <script lang="ts">
     import logo from "$lib/assets/expenTrack_logo.svg";
 	import { label } from "flowbite-svelte";
+    import UploadImage from "$lib/components/UploadImage.svelte";
 
-    let mode = $state('');
     let userName = $state('');
 
-    let gender = [
-        { value : 'male', label : 'Male'},
-        { value : 'Female', label : 'Female'},
-        { value : 'other', label : 'Other'}
-    ];
-    let selected = $state(null);
+    //Upload Profile Image
+    let imgFile: File | null = $state(null);
+    let openUploadModal: boolean = $state(false);
+    
+
+    function closeUploadModal() //Close upload image modal
+    {
+        imgFile = null;
+        openUploadModal = false;
+    }
+
+    async function updateProfileImage(file: File|null){
+        if(file === null) return;
+        //API
+    }
 
 </script>
 
@@ -22,7 +31,7 @@
         </div>
         <div class="w-[20vh] mt-5 flex flex-wrap items-center space-x-5">
             <img src={logo} alt="User-Pic" class="inline mx-1 h-20 w-20 rounded-full ring-2 ring-gray-300 dark:ring-gray-500">
-            <button class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">Change</button>
+            <button class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded" onclick={()=>{openUploadModal = true}}>Change</button>
         </div>
         <div class="relative w-auto ml-10 mt-6 justify-start"> <!--username-->
             <span class="ml-1 text-lg text-neutral-700/80">Username</span>
@@ -60,4 +69,8 @@
             </div>
         </div>
     </div>
+
+    {#if openUploadModal}
+        <UploadImage open={openUploadModal} uploadFunc={updateProfileImage} onClose={closeUploadModal}></UploadImage> 
+    {/if}
 </div>
