@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { invalidate, invalidateAll, refreshAll } from '$app/navigation';
 	import AddTransaction from '$lib/components/AddTransaction.svelte';
 	import TransactionCard from '$lib/components/TransactionCard.svelte';
 	import TransList from '$lib/components/TransactionList.svelte';
@@ -20,11 +21,6 @@
 		{ id: 'food', name: 'Food & Dining', color: '#FF6B6B', icon: '🍽️', type: 'EXPENSE' },
 		{ id: 'rent', name: 'Rent', color: '#A78BFA', icon: '🏠', type: 'EXPENSE' },
 		{ id: 'utilities', name: 'Bills & Utilities', color: '#FDA7DF', icon: '🧾', type: 'EXPENSE' },
-		{ id: 'entertainment', name: 'Entertainment', color: '#96CEB4', icon: '🎬', type: 'EXPENSE' },
-		{ id: 'transport', name: 'Transportation', color: '#4ECDC4', icon: '🚗', type: 'EXPENSE' },
-		{ id: 'health', name: 'Healthcare', color: '#FFEAA7', icon: '🏥', type: 'EXPENSE' },
-		{ id: 'shopping', name: 'Shopping', color: '#45B7D1', icon: '🛍️', type: 'EXPENSE' },
-		{ id: 'travel', name: 'Travel', color: '#74B9FF', icon: '✈️', type: 'EXPENSE' },
 		// income examples (optional)
 		{ id: 'salary', name: 'Salary', color: '#16A34A', icon: '💰', type: 'INCOME' },
 		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '+', type: 'INCOME' }
@@ -57,7 +53,6 @@
 		Addshow = true;
 	}
 
-	//maybe use this in submit change mode smt
 	async function SubmitTransaction(p) {
 		const method = p.id ? 'PATCH' : 'POST';
 		const url = p.id
@@ -86,6 +81,7 @@
 		// close & clear
 		Addshow = false;
 		editTxn = null;
+		loadall();
 	}
 
 	const asCategoryArray = (x: unknown): Category[] => {
@@ -142,7 +138,7 @@
 
 			if (!res.ok) {
 				const errText = await res.text();
-				throw new Error('HTTP ${res.status} ${res.statusText}: ${errText}');
+				throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
 			}
 
 			const data = await res.json();
@@ -157,9 +153,13 @@
 	let data: any = $state(null);
 
 	onMount(async () => {
+		loadall();
+	});
+
+	async function loadall() {
 		data = await loadData();
 		Parsedata(data);
-	});
+	}
 
 	let PeriodExpense = $state(0);
 	let PeriodIncome = $state(0);
@@ -171,35 +171,6 @@
 		recentdata = data.data.recentTransactions;
 	}
 
-	// async function SubmitTransaction(p) {
-	// 	console.log(p);
-	// 	Addshow = false;
-	// 	let postdata = {
-	// 		amount: p.amount,
-	// 		description: p.note,
-	// 		type: p.type,
-	// 		date: '2025-09-09T12:30:00.000Z',
-	// 		categoryId: p.category || null
-	// 	};
-	// 	const response = await fetch('http://localhost:4000/transaction/', {
-	// 		method: 'POST',
-	// 		credentials: 'include',
-	// 		headers: {
-	// 			'Content-Type': 'application/json' // <-- tell server this is JSON
-	// 		},
-	// 		body: JSON.stringify(postdata)
-	// 	});
-	// 	console.log('Sending to API:', { postdata });
-	// 	console.log(JSON.stringify(postdata));
-	// 	if (response.ok) {
-	// 		alert('Add submitted successfully!');
-	// 		// Optionally clear form fields or redirect
-	// 	} else {
-	// 		alert('Error submitting.');
-	// 		const textBody: string = await response.text();
-	// 		alert(textBody);
-	// 	}
-	// }
 </script>
 
 {#key editTxn?.id ?? 'create'}

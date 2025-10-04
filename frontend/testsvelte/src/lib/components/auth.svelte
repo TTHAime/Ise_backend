@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { fade, scale } from 'svelte/transition';
-	import LoginFrame from "$lib/assets/loginFrame.png";
+	import LoginFrame from '$lib/assets/loginFrame.png';
 	import { goto } from '$app/navigation';
+	import { redirect } from '@sveltejs/kit';
 
 	let firstField: HTMLInputElement | null = null;
 	let overlay: HTMLDivElement | null = $state(null);
@@ -11,88 +12,93 @@
 		mode = 'login',
 		login = () => {},
 		signup = () => {},
-		onClose = () => {},
+		onClose = () => {}
 	} = $props();
 
 	let MsgOpen = $state(false);
 	let MsgNoti = $state('');
 	let MsgKind = $state<'success' | 'error'>('success');
 
-	let email:string= $state('');
-	let password:string = $state('');
-	let confirmPassword:string = $state('');
-	let name :string= $state('');
-	let emailForgetPassword : string = $state('');
+	let email: string = $state('');
+	let password: string = $state('');
+	let confirmPassword: string = $state('');
+	let name: string = $state('');
+	let emailForgetPassword: string = $state('');
 	async function handleSubmitlogin() {
-		alert(`Email: ${email}\nPassword: ${password}`);//check bind value for dev
+		alert(`Email: ${email}\nPassword: ${password}`); //check bind value for dev
 		let postdata = {
 			email: email,
-			password: password,
+			password: password
 		};
-		const response = await fetch('http://localhost:4000/auth/login', {//naja
+		const response = await fetch('http://localhost:4000/auth/login', {
+			//naja
 			method: 'POST',
-			credentials : 'include',
+			credentials: 'include',
 			headers: {
-				"Content-Type": "application/json",   // <-- tell server this is JSON
+				'Content-Type': 'application/json' // <-- tell server this is JSON
 			},
 			body: JSON.stringify(postdata)
 		});
-		console.log("Sending to API:", { email, password });
+		console.log('Sending to API:', { email, password });
 		console.log(JSON.stringify(postdata));
 		if (response.ok) {
-		alert('Form submitted successfully!');
-		navigateToHome();//naja
-		login();
-		// Optionally clear form fields or redirect
+			alert('Form submitted successfully!');
+			navigateToHome(); //naja
+			login();
+			// Optionally clear form fields or redirect
 		} else {
-		alert('Error submitting form.');
+			alert('Error submitting form.');
 			const textBody: string = await response.text();
 			alert(textBody);
 		}
 	}
 
 	async function handleSubmitsignup() {
-		alert(`Email: ${email}\nPassword: ${password}`);//check bind value
+		alert(`Email: ${email}\nPassword: ${password}`); //check bind value
 		let postdata = {
 			email: email,
 			password: password,
 			confirmPassword: confirmPassword,
 			name: name
 		};
-		const response = await fetch('http://localhost:4000/auth/register', {//naja
+		const response = await fetch('http://localhost:4000/auth/register', {
+			//naja
 			method: 'POST',
-			credentials : 'include',
+			credentials: 'include',
 			headers: {
-				"Content-Type": "application/json",   // <-- tell server this is JSON
+				'Content-Type': 'application/json' // <-- tell server this is JSON
 			},
-			body: JSON.stringify(postdata),
+			body: JSON.stringify(postdata)
 		});
 		if (response.ok) {
-		alert('Form submitted successfully!');
-		navigateToHome();//naja
-		signup();
-		// Optionally clear form fields or redirect
+			alert('Form submitted successfully!');
+			navigateToHome(); //naja
+			signup();
+			// Optionally clear form fields or redirect
 		} else {
 			const textBody: string = await response.text();
-			console.log("Response text:", textBody);
+			console.log('Response text:', textBody);
 			alert(textBody);
 		}
 	}
 
+	function googleLoginPopup() {
+		const w = window.open('http://localhost:4000/auth/google/', 'oauth', 'width=480,height=700');
 
+	}
 
 	function navigateToHome() {
 		event?.preventDefault();
-        goto('/home');
-    }
-	
+		goto('/home');
+	}
+
 	function close() {
 		mode = 'login';
 		onClose();
 	}
 
 	function Clicklogin() {
-		navigateToHome();//naja
+		navigateToHome(); //naja
 		login();
 	}
 
@@ -105,31 +111,30 @@
 		mode = 'forgot';
 	}
 
-	async function sendVerificationCodeClick(){
+	async function sendVerificationCodeClick() {
 		//api
-		alert(`Email ${emailForgetPassword}`)
+		alert(`Email ${emailForgetPassword}`);
 		let postData = {
-			email : emailForgetPassword
-		}
-		const response = await fetch('http://localhost:4000/auth/password/forgot',{
-			method : 'POST',
-			headers : {"Content-type" : "application/json"},
-			body : JSON.stringify(postData)
+			email: emailForgetPassword
+		};
+		const response = await fetch('http://localhost:4000/auth/password/forgot', {
+			method: 'POST',
+			headers: { 'Content-type': 'application/json' },
+			body: JSON.stringify(postData)
 		});
-		if(response.ok){
+		if (response.ok) {
 			showMsg('Verification code sent to your email!', 'success');
 		}
-		
 	}
 
-	async function verifyCode(){
+	async function verifyCode() {
 		//API
 		mode = 'resetPass';
 	}
 
-	async function resetPassword(){
+	async function resetPassword() {
 		//API
-		mode = 'login'
+		mode = 'login';
 	}
 
 	function clickBackDrop(e: MouseEvent) {
@@ -138,7 +143,6 @@
 			close();
 		}
 	}
-
 
 	function passwordhide() {
 		var password = document.getElementById('password');
@@ -173,7 +177,8 @@
 		return true;
 	}
 
-	function showMsg(noti: string, kind: 'success' | 'error' = 'success') { //function for show notification
+	function showMsg(noti: string, kind: 'success' | 'error' = 'success') {
+		//function for show notification
 		MsgNoti = noti;
 		MsgKind = kind;
 		MsgOpen = true;
@@ -202,10 +207,11 @@
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="auth-title"
-			class="h-full w-full max-w-md overflow-auto rounded-2xl bg-[#FFF8EF] shadow-xl ring-1 ring-black/5 bg-no-repeat bg-[length:460px_500px] bg-top"
-			transition:scale={{ duration: 160, start: 0.8 }} style="background-image: url('{LoginFrame}');"
-		>	
-            <div style="margin-top: 30%;"></div>
+			class="h-full w-full max-w-md overflow-auto rounded-2xl bg-[#FFF8EF] bg-[length:460px_500px] bg-top bg-no-repeat shadow-xl ring-1 ring-black/5"
+			transition:scale={{ duration: 160, start: 0.8 }}
+			style="background-image: url('{LoginFrame}');"
+		>
+			<div style="margin-top: 30%;"></div>
 			{#if mode === 'login'}
 				<!-- title -->
 				<p class="head-text-shadow text-center text-6xl font-black text-gray-900">LOG IN</p>
@@ -213,7 +219,9 @@
 				<!-- form -->
 				<form class="mx-auto max-w-sm" onsubmit={handleSubmitlogin} id="loginform">
 					<div class="mb-5">
-						<label for="email" class="normal-text mb-2 block text-sm font-medium text-gray-900">Email</label>
+						<label for="email" class="normal-text mb-2 block text-sm font-medium text-gray-900"
+							>Email</label
+						>
 						<input
 							type="email"
 							id="email"
@@ -235,8 +243,8 @@
 							required
 						/>
 						<div style="margin-top:15px;"></div>
-							<div class="flex justify-between pr-3">
-								<div class="flex items-center">
+						<div class="flex justify-between pr-3">
+							<div class="flex items-center">
 								<input
 									checked
 									id="checked-checkbox"
@@ -245,10 +253,17 @@
 									value=""
 									class="h-4 w-4 rounded-sm border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-blue-600"
 								/>
-								<label for="checked-checkbox" class="normal-text ms-2 text-sm font-medium text-gray-900"
-									>Hide password</label>
+								<label
+									for="checked-checkbox"
+									class="normal-text ms-2 text-sm font-medium text-gray-900">Hide password</label
+								>
 							</div>
-							<button class=" hover:underline" onclick={() => {forgotPassClick()}}>forgot password?</button>
+							<button
+								class=" hover:underline"
+								onclick={() => {
+									forgotPassClick();
+								}}>forgot password?</button
+							>
 						</div>
 					</div>
 					<div class="mb-5 flex flex-col items-center">
@@ -266,7 +281,7 @@
 						<p class="text-1xl font-thin text-gray-900" style="margin-top: 15px;">OR</p>
 						<div class="mt-7 flex flex-col gap-2" style="margin-top: 15px;">
 							<button
-								onclick={Clicklogin}
+								onclick={googleLoginPopup}
 								class="inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white p-2 text-sm font-medium text-black outline-none focus:ring-2 focus:ring-[#333] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
 								><img
 									src="https://www.svgrepo.com/show/475656/google-color.svg"
@@ -282,7 +297,14 @@
 				<p class="head-text-shadow text-center text-6xl font-black text-gray-900">SIGN UP</p>
 				<div style="margin-top: 20%;"></div>
 				<!-- form -->
-				<form class="mx-auto max-w-sm" id="signupform" onsubmit={(e) => {e.preventDefault; (Passwordmatch())? handleSubmitsignup() : alert('Password still not match!');}}>
+				<form
+					class="mx-auto max-w-sm"
+					id="signupform"
+					onsubmit={(e) => {
+						e.preventDefault;
+						Passwordmatch() ? handleSubmitsignup() : alert('Password still not match!');
+					}}
+				>
 					<div class="mb-5">
 						<label for="email" class="mb-2 block text-sm font-medium text-gray-900">Email</label>
 						<input
@@ -335,7 +357,11 @@
 							class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
 							required
 						/>
-						<p id="validation" class="text-center text-sm bold text-red-500" style="margin-top: 15px;"></p>
+						<p
+							id="validation"
+							class="bold text-center text-sm text-red-500"
+							style="margin-top: 15px;"
+						></p>
 						<div style="margin-top:15px;"></div>
 						<div class="flex items-center">
 							<input
@@ -346,8 +372,9 @@
 								value=""
 								class="h-4 w-4 rounded-sm border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-blue-600"
 							/>
-							<label for="checked-checkbox" class="normal-text ms-2 text-sm font-medium text-gray-900"
-								>Hide password</label
+							<label
+								for="checked-checkbox"
+								class="normal-text ms-2 text-sm font-medium text-gray-900">Hide password</label
 							>
 						</div>
 					</div>
@@ -376,18 +403,38 @@
 				</form>
 			{/if}
 			{#if mode === 'forgot'}
-				<p class="mx-auto max-w-sm align-middle head-text-shadow text-center text-5xl font-black text-gray-900">RESET PASSWORD</p>
-				<form class="mx-auto max-w-sm align-middle" onsubmit={(e) =>{{e.preventDefault;}}}>
-					<div class="mt-5 relative flex flex-col h-[150px] w-full justify-center">
-						<span class="text-base font-semibold mb-2 text-gray-900">Email</span>
-						<input type="Email" 
-						class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-						placeholder="Email"
-						name="Email" required bind:value={emailForgetPassword}>
+				<p
+					class="head-text-shadow mx-auto max-w-sm text-center align-middle text-5xl font-black text-gray-900"
+				>
+					RESET PASSWORD
+				</p>
+				<form
+					class="mx-auto max-w-sm align-middle"
+					onsubmit={(e) => {
+						{
+							e.preventDefault;
+						}
+					}}
+				>
+					<div class="relative mt-5 flex h-[150px] w-full flex-col justify-center">
+						<span class="mb-2 text-base font-semibold text-gray-900">Email</span>
+						<input
+							type="Email"
+							class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
+							placeholder="Email"
+							name="Email"
+							required
+							bind:value={emailForgetPassword}
+						/>
 					</div>
-					<div class="relative flex flex-col items-center w-full h-[100px]">
-						<button type="submit" class="group relative mb-2 me-2 inline-flex items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-4 focus:ring-lime-200 group-hover:from-teal-300 group-hover:to-lime-300 dark:text-white dark:hover:text-gray-900 dark:focus:ring-lime-800"
-						onclick={() => {sendVerificationCodeClick()}}>
+					<div class="relative flex h-[100px] w-full flex-col items-center">
+						<button
+							type="submit"
+							class="group relative mb-2 me-2 inline-flex items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-4 focus:ring-lime-200 group-hover:from-teal-300 group-hover:to-lime-300 dark:text-white dark:hover:text-gray-900 dark:focus:ring-lime-800"
+							onclick={() => {
+								sendVerificationCodeClick();
+							}}
+						>
 							<span
 								class="relative rounded-md bg-white px-7 py-2.5 font-bold transition-all duration-75 ease-in group-hover:bg-transparent dark:bg-gray-900 group-hover:dark:bg-transparent"
 							>
@@ -446,9 +493,15 @@
 				</form>
 			{/if} -->
 			{#if MsgOpen}
-				<div role="status" aria-live="polite" class="fixed bottom-20 left-1/2 -translate-x-1/2 rounded-xl px-4 py-2 text-white shadow-lg z-50"
-					transition:fade={{ duration: 200 }}>
-					<p class="text-sm {MsgKind === 'success' ? 'text-green-600' : 'text-red-600'}">{MsgNoti}</p>
+				<div
+					role="status"
+					aria-live="polite"
+					class="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl px-4 py-2 text-white shadow-lg"
+					transition:fade={{ duration: 200 }}
+				>
+					<p class="text-sm {MsgKind === 'success' ? 'text-green-600' : 'text-red-600'}">
+						{MsgNoti}
+					</p>
 				</div>
 			{/if}
 		</div>
