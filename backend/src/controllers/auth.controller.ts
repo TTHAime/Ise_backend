@@ -1,3 +1,4 @@
+import { config } from '../libs/config';
 import { BAD_REQUEST, CREATED, OK, UNAUTHORIZED } from '../libs/http';
 import { prisma } from '../libs/prisma';
 import {
@@ -149,7 +150,7 @@ export const googleAuthCallbackHandler = catchErrors(async (req, res) => {
   }
 
   const profile = await exchangeCodeAndGetProfile(code!);
-  const { user, accessToken, refreshToken } = await loginWithGoogleProfile({
+  const { accessToken, refreshToken } = await loginWithGoogleProfile({
     googleId: profile.googleId,
     email: profile.email,
     emailVerified: profile.emailVerified,
@@ -161,15 +162,5 @@ export const googleAuthCallbackHandler = catchErrors(async (req, res) => {
   clearOAuthStateCookie(res);
   setAuthCookie({ res, accessToken, refreshToken });
 
-  return res.status(OK).json({
-    message: 'Google login successful',
-    user: {
-      id: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      profileImage: user.profileImage,
-      provider: user.provider,
-      verified: user.verified,
-    },
-  });
+  return res.redirect(`${config.APP_ORIGIN}dashboard`);
 });

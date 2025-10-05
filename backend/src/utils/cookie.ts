@@ -15,33 +15,25 @@ const decideSameSite = (): Exclude<
 > => (isDev ? 'lax' : 'none');
 const decideSecure = () => !isDev;
 
-// (ออปชัน) หากคุณมีโดเมนหลัก เช่น .example.com ให้ตั้งผ่าน env: COOKIE_DOMAIN
-const withDomain = (opts: CookieOptions): CookieOptions => {
-  const domain = process.env.COOKIE_DOMAIN;
-  return domain ? { ...opts, domain } : opts;
-};
-
-const defaultCookieOptions: CookieOptions = withDomain({
+const defaultCookieOptions: CookieOptions = {
   sameSite: decideSameSite(),
   httpOnly: true,
   secure: decideSecure(),
+};
+
+// Access Token
+export const getAccessTokenCookieOptions = (): CookieOptions => ({
+  ...defaultCookieOptions,
+  path: '/',
+  expires: addMinutes(new Date(), 15),
 });
 
-// Access Token: ใช้ทั้งแอป
-export const getAccessTokenCookieOptions = (): CookieOptions =>
-  withDomain({
-    ...defaultCookieOptions,
-    path: '/',
-    expires: addMinutes(new Date(), 15),
-  });
-
-// Refresh Token: ผูกกับเส้นทาง refresh เท่านั้น
-export const getRefreshTokenCookieOptions = (): CookieOptions =>
-  withDomain({
-    ...defaultCookieOptions,
-    expires: addDays(new Date(), 30),
-    path: REFRESH_PATH,
-  });
+// Refresh Token
+export const getRefreshTokenCookieOptions = (): CookieOptions => ({
+  ...defaultCookieOptions,
+  expires: addDays(new Date(), 30),
+  path: REFRESH_PATH,
+});
 
 type Params = {
   res: Response;
@@ -59,19 +51,15 @@ export const clearAuthCookie = (res: Response) =>
     .clearCookie('accessToken', { path: '/' })
     .clearCookie('refreshToken', { path: REFRESH_PATH });
 
-// ใช้สำหรับ Google OAuth state (กัน CSRF) — แนะนำอย่างยิ่ง
+// ใช้สำหรับ Google OAuth state (กัน CSRF)
 export const setOAuthStateCookie = (res: Response, state: string) =>
-  res.cookie(
-    'g_state',
-    state,
-    withDomain({
-      httpOnly: true,
-      sameSite: decideSameSite(), // 'lax' (dev) / 'none' (prod)
-      secure: decideSecure(),
-      maxAge: 5 * 60 * 1000, // 5 นาที
-      path: '/auth/google',
-    })
-  );
+  res.cookie('g_state', state, {
+    httpOnly: true,
+    sameSite: decideSameSite(), // 'lax' (dev) / 'none' (prod)
+    secure: decideSecure(),
+    maxAge: 5 * 60 * 1000, // 5 นาที
+    path: '/auth/google',
+  });
 
 export const clearOAuthStateCookie = (res: Response) =>
   res.clearCookie('g_state', { path: '/auth/google' });
