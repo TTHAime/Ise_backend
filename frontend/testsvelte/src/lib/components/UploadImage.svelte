@@ -16,7 +16,7 @@
     async function uploadImage(){
         if(!img || img === null) return;
         try{
-            // uploadFunc(img);
+            uploadFunc(img);
         }finally{
             if(previewImgURL) URL.revokeObjectURL(previewImgURL);
             img = null;
