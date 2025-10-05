@@ -7,26 +7,29 @@
     import { MegaMenu } from "flowbite-svelte";
     import { BellSolid,HomeSolid,UserSettingsSolid,ChartMixedDollarSolid,CalendarPlusSolid,FaceLaughSolid } from "flowbite-svelte-icons";
 
-    let menu = [
-        { name: "Home", href: "/home", icon: HomeSolid },
-        { name: "Transaction", href: "/Transaction", icon: CalendarPlusSolid },
-        { name: "Analytics", href: "/analytics", icon: ChartMixedDollarSolid },
-        { name: "About us", href: "/etc", icon: FaceLaughSolid },
-        { name: "Setting", href: "/setting/account", icon: UserSettingsSolid },
-    ];
     import { blur, slide, scale } from "svelte/transition";
 
+    type MenuItem = | {kind: 'link'; name: string; href: string, icon: any} | { kind: 'action'; name: string; icon: any; onClick: () => void };
+    
     const props = $props<{user: unknown; loginClick?: () => void; signupClick?: () => void; logoutClick?: () => void}>();
-
+    
     const user = $derived(props.user);
     const loginClick = $derived(props.loginClick ?? (() => {}));
     const signupClick = $derived(props.signupClick ?? (() => {}));
     const logoutClick = $derived(props.logoutClick ?? (() => {}));
-
+    
     const displayName = $derived(user?.user.displayName ?? '');
-
+    
     let notishow = $state(false);
-
+    
+    let menu: MenuItem[] = [
+        {kind: 'link', name: "Home", href: "/home", icon: HomeSolid },
+        {kind: 'link', name: "Transaction", href: "/Transaction", icon: CalendarPlusSolid },
+        {kind: 'link', name: "Analytics", href: "/analytics", icon: ChartMixedDollarSolid },
+        {kind: 'link', name: "About us", href: "/etc", icon: FaceLaughSolid },
+        {kind: 'link', name: "Setting", href: "/setting/account", icon: UserSettingsSolid },
+        {kind: 'action', name: "logout", icon: UserSettingsSolid, onClick: () => logoutClick() },
+    ];
 </script>
 
 <style lang="postcss">
@@ -57,13 +60,20 @@
         </button>
         <MegaMenu class="shadow-box px-1" transition={slide} transitionParams={{ duration: 500 }}>
             {#each menu as item}
-            <a
-            href={item.href}
-            class="col-span-full flex items-center gap-2 px-2 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-green-600 dark:hover:text-white"
-            >
-            <item.icon class="h-4 w-4" />
-            <span>{item.name}</span>
-        </a>
+            {#if item.kind === 'link'}
+                <a
+                    href={item.href}
+                    class="col-span-full flex items-center gap-2 px-2 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-green-600 dark:hover:text-white"
+                    >
+                    <item.icon class="h-4 w-4" />
+                    <span>{item.name}</span>
+                </a>
+            {:else if item.kind === 'action'}
+                <button class="col-span-full flex items-center gap-2 px-2 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 hover:text-green-600 dark:hover:text-white" onclick={item.onClick}>
+                    <item.icon class="h-4 w-4" />
+                    <span>{item.name}</span>
+                </button>
+            {/if}
         {/each}
     </MegaMenu>
     {:else}
