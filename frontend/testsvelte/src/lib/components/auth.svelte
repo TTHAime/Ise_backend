@@ -113,7 +113,6 @@
 
 	async function sendVerificationCodeClick() {
 		//api
-		alert(`Email ${emailForgetPassword}`);
 		let postData = {
 			email: emailForgetPassword
 		};

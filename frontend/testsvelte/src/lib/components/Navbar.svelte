@@ -52,7 +52,7 @@
             {/if}
         </span>
         <button type="button" class="flex items-center gap-2 cursor-pointer hover:bg-gray-400/50 rounded-sm" aria-label="Open user menu">
-            <img src={user?.user.photoURL ?? userpic} alt="User-Pic" class="inline h-8 w-8 rounded-full ring-2 ring-gray-300 dark:ring-gray-500">
+            <img src={user?.user.profileImage ?? userpic} alt="User-Pic" class="inline h-8 w-8 rounded-full ring-2 ring-gray-300 dark:ring-gray-500">
             <span class="ml-2">{displayName}</span>
         </button>
         <MegaMenu class="shadow-box px-1" transition={slide} transitionParams={{ duration: 500 }}>
