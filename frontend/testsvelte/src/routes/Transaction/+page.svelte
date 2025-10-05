@@ -4,6 +4,8 @@
 	import TransactionCard from '$lib/components/TransactionCard.svelte';
 	import TransList from '$lib/components/TransactionList.svelte';
 	import { onMount } from 'svelte';
+	import { ApiRoot } from '$lib/stores';
+
 	const symbolLeft = '<';
 	const symbolRight = '>';
 	let label = $state('Date');
@@ -56,8 +58,8 @@
 	async function SubmitTransaction(p) {
 		const method = p.id ? 'PATCH' : 'POST';
 		const url = p.id
-			? 'http://localhost:4000/transaction/'.concat(p.id) // up
-			: 'http://localhost:4000/transaction'; // add
+			? `${ApiRoot}transaction/`.concat(p.id) // up
+			: `${ApiRoot}transaction`; // add
 		const body = {
 			amount: p.amount,
 			description: p.note,
@@ -99,11 +101,11 @@
 
 	async function loadCategories() {
 		const [expRes, incRes] = await Promise.all([
-			fetch('http://localhost:4000/category?type=EXPENSE', {
+			fetch(`${ApiRoot}category?type=EXPENSE`, {
 				credentials: 'include',
 				headers: { Accept: 'application/json' }
 			}),
-			fetch('http://localhost:4000/category?type=INCOME', {
+			fetch(`${ApiRoot}category?type=INCOME`, {
 				credentials: 'include',
 				headers: { Accept: 'application/json' }
 			})
@@ -130,7 +132,7 @@
 	async function loadData() {
 		loadCategories();
 		try {
-			const res = await fetch('http://localhost:4000/dashboard', {
+			const res = await fetch(`${ApiRoot}dashboard`, {
 				method: 'GET',
 				credentials: 'include',
 				headers: { Accept: 'application/json' }

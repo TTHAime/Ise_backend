@@ -4,7 +4,9 @@
 	import CompareCard from '$lib/components/Compare-line.svelte';
 	import Piechart from '$lib/components/Piechart.svelte';
 	import type { ApexOptions } from 'apexcharts';
+	import { user, refreshUser, logout } from '$lib/components/auth';
 	import { onMount } from 'svelte';
+	import { ApiRoot, allFetchCategories, expenseCategories, incomeCategories } from '$lib/stores';
 
 	async function load() {
 		//api call to get data from backend
@@ -13,70 +15,11 @@
 	}
 
 	onMount(() => {
-		loadData();//this month by default
-		loadData(new Date(2025, 9 ,13));//y m d ? month little error
+		refreshUser();
+		allFetchCategories();
+		loadData(); //this month by default
+		loadData(new Date(2025, 9, 13)); //y m d ? month little error
 	});
-
-	type Category = {
-		id: string;
-		name: string;
-		color?: string; // e.g. "#FDA7DF"
-		icon?: string; // e.g. "📄"
-		type?: 'INCOME' | 'EXPENSE';
-	};
-
-	let categories = $state<Category[]>([
-		//default hard code pap
-		{ id: 'food', name: 'Food & Dining', color: '#FF6B6B', icon: '🍽️', type: 'EXPENSE' },
-		{ id: 'rent', name: 'Rent', color: '#A78BFA', icon: '🏠', type: 'EXPENSE' },
-		{ id: 'utilities', name: 'Bills & Utilities', color: '#FDA7DF', icon: '🧾', type: 'EXPENSE' },
-		// income examples (optional)
-		{ id: 'salary', name: 'Salary', color: '#16A34A', icon: '💰', type: 'INCOME' },
-		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '+', type: 'INCOME' }
-	]);
-
-	const asCategoryArray = (x: unknown): Category[] => {
-		if (Array.isArray(x)) return x as Category[];
-		if (x && typeof x === 'object') {
-			const obj = x as any;
-			if (Array.isArray(obj.data)) return obj.data as Category[];
-			if (Array.isArray(obj.categories)) return obj.categories as Category[];
-		}
-		return []; // fallback
-	};
-
-	const dedupeById = (arr: Category[]) =>
-		Array.from(new Map(arr.map((c) => [String(c.id), c])).values());
-
-	async function loadCategories() {
-		const [expRes, incRes] = await Promise.all([
-			fetch('http://localhost:4000/category?type=EXPENSE', {
-				credentials: 'include',
-				headers: { Accept: 'application/json' }
-			}),
-			fetch('http://localhost:4000/category?type=INCOME', {
-				credentials: 'include',
-				headers: { Accept: 'application/json' }
-			})
-		]);
-		if (!expRes.ok) throw new Error(await expRes.text());
-		if (!incRes.ok) throw new Error(await incRes.text());
-
-		const [expRaw, incRaw] = (await Promise.all([expRes.json(), incRes.json()])) as [
-			Category[],
-			Category[]
-		];
-
-		// Normalize to arrays (handles [], {data:[]}, {categories:[]}, etc.)
-		const exp = asCategoryArray(expRaw).map((c) => ({
-			...c,
-			type: c.type ?? ('EXPENSE' as const)
-		}));
-		const inc = asCategoryArray(incRaw).map((c) => ({ ...c, type: c.type ?? ('INCOME' as const) }));
-
-		const merged = dedupeById([...exp, ...inc]);
-		categories = merged;
-	}
 
 	// Helper: start/end of a month in local time
 	const monthRange = (d = new Date()) => {
@@ -98,8 +41,6 @@
 
 	// Load both income & expense within the month of `when` (default: now)
 	async function loadData(when?: Date) {
-		loadCategories();
-
 		const { start, end } = monthRange(when);
 		const paramsBase = new URLSearchParams({
 			dateFrom: start.toISOString(),
@@ -110,7 +51,7 @@
 		const makeUrl = (type: 'INCOME' | 'EXPENSE') => {
 			const qs = new URLSearchParams(paramsBase);
 			qs.set('type', type);
-			return `http://localhost:4000/transaction?${qs.toString()}`;
+			return `${ApiRoot}transaction?${qs.toString()}`;
 		};
 
 		try {

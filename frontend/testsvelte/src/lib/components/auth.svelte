@@ -3,6 +3,7 @@
 	import LoginFrame from '$lib/assets/loginFrame.png';
 	import { goto } from '$app/navigation';
 	import { redirect } from '@sveltejs/kit';
+	import { ApiRoot } from '$lib/stores';
 
 	let firstField: HTMLInputElement | null = null;
 	let overlay: HTMLDivElement | null = $state(null);
@@ -30,7 +31,7 @@
 			email: email,
 			password: password
 		};
-		const response = await fetch('http://localhost:4000/auth/login', {
+		const response = await fetch(`${ApiRoot}auth/login`, {
 			//naja
 			method: 'POST',
 			credentials: 'include',
@@ -61,7 +62,7 @@
 			confirmPassword: confirmPassword,
 			name: name
 		};
-		const response = await fetch('http://localhost:4000/auth/register', {
+		const response = await fetch(`${ApiRoot}auth/register`, {
 			//naja
 			method: 'POST',
 			credentials: 'include',
@@ -82,9 +83,9 @@
 		}
 	}
 
-	function googleLoginPopup() {
-		const w = window.open('http://localhost:4000/auth/google/', 'oauth', 'width=480,height=700');
-
+	function loginWithGoogle() {
+		// IMPORTANT: use navigation, not fetch — cookies & redirects happen in the browser
+		window.location.href = `${ ApiRoot }/auth/google`;
 	}
 
 	function navigateToHome() {
@@ -117,7 +118,7 @@
 		let postData = {
 			email: emailForgetPassword
 		};
-		const response = await fetch('http://localhost:4000/auth/password/forgot', {
+		const response = await fetch(`${ApiRoot}auth/password/forgot`, {
 			method: 'POST',
 			headers: { 'Content-type': 'application/json' },
 			body: JSON.stringify(postData)
@@ -281,7 +282,7 @@
 						<p class="text-1xl font-thin text-gray-900" style="margin-top: 15px;">OR</p>
 						<div class="mt-7 flex flex-col gap-2" style="margin-top: 15px;">
 							<button
-								onclick={googleLoginPopup}
+								onclick={loginWithGoogle}
 								class="inline-flex h-10 w-full items-center justify-center gap-2 rounded border border-slate-300 bg-white p-2 text-sm font-medium text-black outline-none focus:ring-2 focus:ring-[#333] focus:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-60"
 								><img
 									src="https://www.svgrepo.com/show/475656/google-color.svg"

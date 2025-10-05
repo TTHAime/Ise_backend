@@ -1,10 +1,11 @@
 import {writable} from 'svelte/store';
+import { ApiRoot } from '$lib/stores';
 
 export const user = writable(null);
 
 export async function refreshUser() {
-   try{
-		const url = 'http://localhost:4000/user/'
+    try{
+		const url = `${ApiRoot}user/`;
 		const response = await fetch(url, {
 			credentials : 'include'
 		});
@@ -16,7 +17,7 @@ export async function refreshUser() {
 
 export async function logout() {
     try{
-		const api : string = 'http://localhost:4000/auth/logout';
+		const api : string = `${ApiRoot}auth/logout`;
 		const response = await fetch(api, {credentials : 'include'});
 		if(response.ok){
             user.set(null);
