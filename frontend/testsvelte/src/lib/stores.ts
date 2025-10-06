@@ -1,6 +1,18 @@
-import { writable } from 'svelte/store';
+import { writable,get } from 'svelte/store';
 
+// ---- stores ----
 export const ApiRoot = 'http://localhost:4000/';
+export let Dashboard = writable<string[]>([]);
+
+export const incomeCategories = writable<CompleteCategory[]>([]);
+export const expenseCategories = writable<CompleteCategory[]>([]);
+
+export const incomeSeries = writable<number[]>([]);
+export const expenseSeries = writable<number[]>([]);
+
+export let Totalincome = writable(20);
+export let Totalexpense = writable(10);
+
 
 // ---- types ----
 export type CompleteCategory = {
@@ -13,13 +25,6 @@ export type CompleteCategory = {
 	updatedAt: string;
 	count: number;
 };
-
-// ---- stores ----
-export const incomeCategories = writable<CompleteCategory[]>([]);
-export const expenseCategories = writable<CompleteCategory[]>([]);
-
-export const incomeSeries = writable<number[]>([]);
-export const expenseSeries = writable<number[]>([]);
 
 // ---- helpers ----
 const apiFetch = (path: string, init: RequestInit = {}) =>
@@ -54,7 +59,7 @@ const toComplete = (c: any): CompleteCategory => ({
 });
 
 // ---- fetchers ----
-export async function fetchIncomeCategories(): Promise<void> {
+async function fetchIncomeCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=INCOME');
 		if (!res.ok) throw new Error(await res.text());
@@ -69,7 +74,7 @@ export async function fetchIncomeCategories(): Promise<void> {
 	}
 }
 
-export async function fetchExpenseCategories(): Promise<void> {
+async function fetchExpenseCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=EXPENSE');
 		if (!res.ok) throw new Error(await res.text());
@@ -84,7 +89,7 @@ export async function fetchExpenseCategories(): Promise<void> {
 	}
 }
 
-export async function allFetchCategories(): Promise<void> {
+async function loadallFetchCategories(): Promise<void> {
 	await Promise.all([fetchIncomeCategories(), fetchExpenseCategories()]);
 }
 
@@ -95,7 +100,7 @@ const monthRange = (d = new Date()) => {
 	return { start, end };
 };
 
-export async function loadData(when?: Date) {
+async function loadData(when?: Date) {
 	const { start, end } = monthRange(when);
 	const paramsBase = new URLSearchParams({
 		dateFrom: start.toISOString(),
@@ -121,7 +126,6 @@ export async function loadData(when?: Date) {
 		const income = asArray(incRaw);
 		const expense = asArray(expRaw);
 
-
 		incomeSeries.set(income);
 		expenseSeries.set(expense);
 	} catch (err) {
@@ -130,4 +134,33 @@ export async function loadData(when?: Date) {
 		expenseSeries.set([]);
 		throw err;
 	}
+}
+
+async function loadDaashboard() {
+	try {
+		const res = await fetch(`${ApiRoot}dashboard`, {
+			method: 'GET',
+			credentials: 'include',
+			headers: { Accept: 'application/json' }
+		});
+
+		if (!res.ok) {
+			const errText = await res.text();
+			throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
+		}
+
+		const data = await res.json();
+		Dashboard.set(data);
+        Totalexpense.set(Number(data.data.totalExpense))
+        Totalincome.set(Number(data.data.totalIncome))
+	} catch (err) {
+		console.error('Failed to load dashboard:', err);
+		throw err;
+	}
+}
+
+export function loadAll(){
+    loadDaashboard();
+    loadData();
+    loadallFetchCategories();
 }

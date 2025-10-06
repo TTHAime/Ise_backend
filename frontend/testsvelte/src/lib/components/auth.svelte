@@ -85,7 +85,7 @@
 
 	function loginWithGoogle() {
 		// IMPORTANT: use navigation, not fetch — cookies & redirects happen in the browser
-		window.location.href = `${ ApiRoot }/auth/google`;
+		window.location.href = `${ ApiRoot }auth/google`;
 	}
 
 	function navigateToHome() {
@@ -146,8 +146,8 @@
 	}
 
 	function passwordhide() {
-		var password = document.getElementById('password');
-		var confirm_password = document.getElementById('confirm_password');
+		var password = document.getElementById('password') as HTMLInputElement | null;
+		var confirm_password = document.getElementById('confirm_password') as HTMLInputElement | null;
 		if (confirm_password != null) {
 			if (confirm_password.type == 'text') {
 				confirm_password.type = 'password';
@@ -155,10 +155,12 @@
 				confirm_password.type = 'text';
 			}
 		}
-		if (password.type == 'text') {
-			password.type = 'password';
-		} else {
-			password.type = 'text';
+		if (password != null) {
+			if (password.type == 'text') {
+				password.type = 'password';
+			} else {
+				password.type = 'text';
+			}
 		}
 	}
 

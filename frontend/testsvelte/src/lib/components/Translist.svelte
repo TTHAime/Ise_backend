@@ -1,39 +1,55 @@
 <script lang="ts">
-    import { Card, Popover,A } from 'flowbite-svelte';
-    
+	import { Card, Popover, A } from 'flowbite-svelte';
+
 	type TxType = 'INCOME' | 'EXPENSE';
+	type RecentTxn = {
+		id: string;
+		amount: number | string;
+		type: TxType;
+		date: string; // ISO
+		description: string;
+		categoryName?: string;
+		categoryIcon?: string;
+		categoryColor?: string;
+	};
 
-    //scrolloable max height
-	export let maxHeight = '16rem';//16 is ideal 5 items
-    
-    let data = {//pass in from parent
-        title: 'Recent Transactions',
-        items: [
-            // { id: 1, description: 'Grocery Shopping', amount: 50.75, date: '2025-10-01', type: 'EXPENSE' as TxType },
-            // { id: 2, description: 'Electricity Bill', amount: 75.0,  date: '2025-10-03', type: 'EXPENSE' as TxType },
-            // { id: 3, description: 'investment', amount: 30.0, date: '2025-10-05', type: 'INCOME' as TxType },
-            // { id: 4, description: 'Monthly Subscription', amount: 12.50, date: '2025-10-07', type: 'EXPENSE' as TxType },
-            // { id: 5, description: 'Salary', amount: 17800, date: '2025-10-10', type: 'INCOME'  as TxType },//max 5 or not
-            // { id: 6, description: 'Freelance Project', amount: 500.0, date: '2025-10-12', type: 'INCOME' as TxType },
-            // { id: 7, description: 'Dining Out', amount: 60.0, date: '2025-10-15', type: 'EXPENSE' as TxType },
-            // { id: 8, description: 'Gym Membership', amount: 40.0, date: '2025-10-18', type: 'EXPENSE' as TxType },
-            // { id: 9, description: 'Book Purchase', amount: 20.0, date: '2025-10-20', type: 'EXPENSE' as TxType },
-            // { id: 10, description: 'Car Maintenance', amount: 150.0, date: '2025-10-22', type: 'EXPENSE' as TxType }
-        ]
-    };
-	// let data = {
-	// 	title: 'Recent Transactions',
-	// 	items: [] as Array<{ id: number; description: string; amount: number; date: string; type: TxType }>
-	// };
+	export let maxHeight = '16rem';
 
-	const amountText = (amt: number, type: TxType) =>
-		type === 'EXPENSE' ? `-${amt.toFixed(2)} Baht` : `+${amt.toFixed(2)} Baht`;
+	export let data: {
+		title?: string;
+		recentTransactions: RecentTxn[];
+	} = { title: 'Recent Transactions', recentTransactions: [] };
+
+	const amountNum = (v: number | string) => {
+		const n = Number(v);
+		return Number.isFinite(n) ? n : 0;
+	};
+
+	const amountText = (amt: number | string, type: TxType) => {
+		const n = amountNum(amt);
+		const sign = type === 'EXPENSE' ? '-' : '+';
+		return `${sign}${n.toFixed(2)} Baht`;
+	};
 
 	const amountClass = (type: TxType) =>
-		type === 'EXPENSE' ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400';
+		type === 'EXPENSE'
+			? 'text-red-600 dark:text-red-400'
+			: 'text-emerald-600 dark:text-emerald-400';
 
-    //icon by cate naja
-	const iconFor = (type: TxType) => (type === 'INCOME' ? '💸' : '🧾');
+	const iconFor = (t: RecentTxn) => t.categoryIcon ?? (t.type === 'INCOME' ? '💸' : '🧾');
+
+	const colorFor = (t: RecentTxn) => t.categoryColor ?? '#E5E7EB'; // fallback gray-200
+
+	const formatDate = (iso: string) => {
+		const d = new Date(iso);
+		// fallback if invalid
+		if (isNaN(d.getTime())) return iso;
+		return d.toLocaleDateString(undefined, {
+			year: 'numeric',
+			month: 'short',
+			day: '2-digit'
+		});
+	};
 </script>
 
 <Card
@@ -44,14 +60,16 @@
 	<div class="absolute left-1/2 top-0 z-10 -translate-x-1/2 -translate-y-1/4">
 		<div class="shadow-box mx-2 max-w-3xl rounded-lg bg-white px-4 py-3 sm:px-6 dark:bg-gray-800">
 			<div class="flex items-center gap-2">
-				<h1 class="text-xl font-bold text-gray-900 dark:text-white">Transaction</h1>
+				<h1 class="text-xl font-bold text-gray-900 dark:text-white">
+					{data.title ?? 'Recent Transactions'}
+				</h1>
 			</div>
 			<Popover
 				class="shadow-xs z-10 w-72 rounded-lg border border-gray-200 bg-white text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400"
 			>
 				<div class="space-y-2 p-3">
 					<h3 class="font-semibold text-gray-900 dark:text-white">Transaction info</h3>
-					<p>show recent transaction</p>
+					<p>Shows the latest income and expense records from your account.</p>
 				</div>
 			</Popover>
 		</div>
@@ -59,25 +77,42 @@
 
 	<!-- Scrollable List / Empty state -->
 	<div
-		class="mt-1 sm:mt-6 overflow-y-auto overscroll-contain pr-2"
+		class="mt-1 overflow-y-auto overscroll-contain pr-2 sm:mt-6"
 		style={`max-height:${maxHeight};scrollbar-gutter:stable;`}
 		aria-label="Recent transactions"
 	>
-		{#if data.items && data.items.length > 0}
+		{#if data.recentTransactions?.length}
 			<ul class="divide-y divide-gray-200 dark:divide-gray-700">
-				{#each data.items as item (item.id)}
-					<li class="flex items-center justify-between gap-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-900/40 rounded-md px-2">
-						<div class="flex items-center gap-3 min-w-0">
-							<span class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1 ring-gray-200 bg-white text-base dark:bg-gray-800 dark:ring-gray-700">
-								{iconFor(item.type)}
+				{#each data.recentTransactions as item (item.id)}
+					<li
+						class="flex items-center justify-between gap-3 rounded-md px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-900/40"
+						style={`--cat:${colorFor(item)};`}
+					>
+						<div class="flex min-w-0 items-center gap-3">
+							<!-- colored avatar with icon -->
+							<span
+								class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-base ring-1 dark:bg-gray-800"
+								style="color: var(--cat); border-color: var(--cat);"
+								aria-hidden="true"
+								title={item.categoryName ?? item.type}
+							>
+								{iconFor(item)}
 							</span>
+
 							<div class="min-w-0">
-								<p class="truncate text-sm font-medium text-gray-900 dark:text-white">{item.description}</p>
-								<p class="text-xs text-gray-500 dark:text-gray-400">{item.date}</p>
+								<p class="truncate text-sm font-medium text-gray-900 dark:text-white">
+									{item.description}
+								</p>
+								<p class="text-xs text-gray-500 dark:text-gray-400">
+									{formatDate(item.date)}
+									{#if item.categoryName}
+										· <span class="truncate align-middle">{item.categoryName}</span>
+									{/if}
+								</p>
 							</div>
 						</div>
 
-						<div class={"shrink-0 text-sm font-semibold " + amountClass(item.type)}>
+						<div class={'shrink-0 text-sm font-semibold ' + amountClass(item.type)}>
 							{amountText(item.amount, item.type)}
 						</div>
 					</li>
@@ -90,12 +125,15 @@
 			>
 				<div class="text-3xl">🗒️</div>
 				<p class="text-sm font-medium text-gray-900 dark:text-white">No transactions yet</p>
-				<p class="text-xs text-gray-500 dark:text-gray-400">Add an income or expense to see it here.</p>
+				<p class="text-xs text-gray-500 dark:text-gray-400">
+					Add an income or expense to see it here.
+				</p>
 				<A
 					href="/Transaction"
 					class="group inline-flex items-center text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900"
-					aria-label="Open analytics"
-				>Add transaction
+					aria-label="Add a transaction"
+				>
+					Add transaction
 				</A>
 			</div>
 		{/if}
@@ -103,11 +141,22 @@
 </Card>
 
 <style>
-	/* optional: slimmer, neutral scrollbar */
-	:global(.overflow-y-auto::-webkit-scrollbar) { width: 8px; }
-	:global(.overflow-y-auto::-webkit-scrollbar-track) { background: transparent; }
-	:global(.overflow-y-auto::-webkit-scrollbar-thumb) { background: rgba(100,100,100,.35); border-radius: 8px; }
-	:global(.overflow-y-auto:hover::-webkit-scrollbar-thumb) { background: rgba(100,100,100,.55); }
+	:global(.overflow-y-auto::-webkit-scrollbar) {
+		width: 8px;
+	}
+	:global(.overflow-y-auto::-webkit-scrollbar-track) {
+		background: transparent;
+	}
+	:global(.overflow-y-auto::-webkit-scrollbar-thumb) {
+		background: rgba(100, 100, 100, 0.35);
+		border-radius: 8px;
+	}
+	:global(.overflow-y-auto:hover::-webkit-scrollbar-thumb) {
+		background: rgba(100, 100, 100, 0.55);
+	}
 	/* Firefox */
-	:global(.overflow-y-auto) { scrollbar-width: thin; scrollbar-color: rgba(100,100,100,.35) transparent; }
+	:global(.overflow-y-auto) {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(100, 100, 100, 0.35) transparent;
+	}
 </style>

@@ -6,14 +6,18 @@
 	import type { ApexOptions } from 'apexcharts';
 	import { user, refreshUser, logout } from '$lib/components/auth';
 	import { onMount } from 'svelte';
-	import { allFetchCategories, incomeSeries, expenseSeries, loadData } from '$lib/stores';
+	import {
+		incomeSeries,
+		expenseSeries,
+		Totalincome,
+		Totalexpense,
+		Dashboard,
+		loadAll,
+	} from '$lib/stores';
 
 	async function load() {
-		allFetchCategories();
-		await loadData(); //this month by default
 		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
-
-		return {};
+		// await loadAll();
 	}
 
 	let data = $state();
@@ -21,7 +25,6 @@
 	onMount(() => {
 		refreshUser();
 		load();
-		console.log($incomeSeries);
 		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
 	});
 
@@ -82,20 +85,24 @@
 
 		return { series, colors, labels };
 	}
+	// 1) gate rendering
+	let ready = $state(false);
+	$effect(() => {
+		(async () => {
+			await refreshUser();
+			await loadAll(); // fill the stores
+		})();
+	});
 
 	const incseries = toSeries($incomeSeries);
 	const inccolors = toColors($incomeSeries);
 	const inclabels = toLabels($incomeSeries);
 	const incgrouped = bucketsAll(incseries, inccolors, inclabels);
-
-
 	const expseries = toSeries($expenseSeries);
 	const expcolors = toColors($expenseSeries);
 	const explabels = toLabels($expenseSeries);
 	const expgrouped = bucketsAll(expseries, expcolors, explabels);
-	console.log(expgrouped)
-	
-	// common pie opts
+
 	const pieCommon: ApexOptions = {
 		chart: {
 			type: 'pie',
@@ -109,33 +116,62 @@
 			{ breakpoint: 768, options: { plotOptions: { pie: { dataLabels: { offset: -15 } } } } }
 		]
 	};
-
 	const expenseOptions: ApexOptions = {
 		...pieCommon,
 		series: expgrouped.series,
 		colors: expgrouped.colors,
 		labels: expgrouped.labels
 	};
-
 	const incomeOptions: ApexOptions = {
 		...pieCommon,
 		series: incgrouped.series,
 		colors: incgrouped.colors,
 		labels: incgrouped.labels
 	};
+	console.log($Dashboard)
+	ready = true; // now show the page
 </script>
 
-<div class="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-8 drop-shadow-lg md:grid-cols-2">
-	<Piechart
-		title="Expense"
-		description="This chart shows where your money goes each month."
-		options={expenseOptions}
-	/>
-	<Piechart
-		title="Income"
-		description="This chart shows your different sources of income."
-		options={incomeOptions}
-	/>
-	<TransactionList />
-	<Summary />
-</div>
+{#if !ready}
+	<div
+		class="fixed inset-0 grid place-items-center"
+		role="status"
+		aria-live="polite"
+		aria-label="Loading"
+	>
+		<div class="flex flex-col items-center">
+			<!-- halo -->
+			<div class="relative">
+				<div
+					class="size-28 animate-ping rounded-full bg-emerald-400/20 motion-reduce:animate-none"
+				></div>
+				<!-- spinner -->
+				<div class="absolute inset-0 grid place-items-center">
+					<div
+						class="size-12 animate-spin rounded-full border-4 border-emerald-500/30 border-t-emerald-500 motion-reduce:animate-none"
+					></div>
+				</div>
+			</div>
+
+			<!-- text -->
+			<p class="mt-6 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+				Loading your dashboard…
+			</p>
+		</div>
+	</div>
+{:else}
+	<div class="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-8 drop-shadow-lg md:grid-cols-2">
+		<Piechart
+			title="Expense"
+			description="This chart shows where your money goes each month."
+			options={expenseOptions}
+		/>
+		<Piechart
+			title="Income"
+			description="This chart shows your different sources of income."
+			options={incomeOptions}
+		/>
+		<TransactionList data={$Dashboard.data} />
+		<Summary expense={$Totalexpense} income={$Totalincome} />
+	</div>
+{/if}

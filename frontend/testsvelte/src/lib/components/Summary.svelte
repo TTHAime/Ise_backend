@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { Card, Popover } from 'flowbite-svelte';
 
-	//api data
-	const income = 17830;
-	const expense = 10000;
+
+	export let income  = 0;
+	export let expense = 10000;
+
 
 	$: remaining = income - expense;
 	$: spentPct = income > 0 ? Math.min(100, Math.round((expense / income) * 100)) : 0;

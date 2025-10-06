@@ -1,5 +1,5 @@
 import {writable} from 'svelte/store';
-import { ApiRoot } from '$lib/stores';
+import { ApiRoot,loadAll} from '$lib/stores';
 
 export const user = writable(null);
 
@@ -10,6 +10,7 @@ export async function refreshUser() {
 			credentials : 'include'
 		});
 		user.set(response.ok? await response.json() : null);
+		await loadAll();
 	}catch{
 		user.set(null);
 	}
