@@ -4,7 +4,7 @@
 	import TransactionCard from '$lib/components/TransactionCard.svelte';
 	import TransList from '$lib/components/TransactionList.svelte';
 	import { onMount } from 'svelte';
-	import { ApiRoot } from '$lib/stores';
+	import { ApiRoot,expenseCategories,incomeCategories } from '$lib/stores';
 
 	const symbolLeft = '<';
 	const symbolRight = '>';

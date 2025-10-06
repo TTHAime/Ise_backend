@@ -6,93 +6,95 @@
 	import type { ApexOptions } from 'apexcharts';
 	import { user, refreshUser, logout } from '$lib/components/auth';
 	import { onMount } from 'svelte';
-	import { ApiRoot, allFetchCategories, expenseCategories, incomeCategories } from '$lib/stores';
+	import { allFetchCategories, incomeSeries, expenseSeries, loadData } from '$lib/stores';
 
 	async function load() {
-		//api call to get data from backend
+		allFetchCategories();
+		await loadData(); //this month by default
+		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
 
 		return {};
 	}
 
+	let data = $state();
+
 	onMount(() => {
 		refreshUser();
-		allFetchCategories();
-		loadData(); //this month by default
-		loadData(new Date(2025, 9, 13)); //y m d ? month little error
+		load();
+		console.log($incomeSeries);
+		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
 	});
 
-	// Helper: start/end of a month in local time
-	const monthRange = (d = new Date()) => {
-		const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-		const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-		return { start, end };
-	};
-
-	// Optional: ensure we always return an array
-	const asTxnArray = (raw: unknown) => {
-		if (Array.isArray(raw)) return raw;
-		if (raw && typeof raw === 'object') {
-			const o = raw as any;
-			if (Array.isArray(o.transactions)) return o.transactions;
-			if (Array.isArray(o.data)) return o.data;
-		}
-		return [];
-	};
-
-	// Load both income & expense within the month of `when` (default: now)
-	async function loadData(when?: Date) {
-		const { start, end } = monthRange(when);
-		const paramsBase = new URLSearchParams({
-			dateFrom: start.toISOString(),
-			dateTo: end.toISOString()
-			// you can add pagination here if needed, e.g. limit: '100'
-		});
-
-		const makeUrl = (type: 'INCOME' | 'EXPENSE') => {
-			const qs = new URLSearchParams(paramsBase);
-			qs.set('type', type);
-			return `${ApiRoot}transaction?${qs.toString()}`;
-		};
-
-		try {
-			const [incRes, expRes] = await Promise.all([
-				fetch(makeUrl('INCOME'), {
-					method: 'GET',
-					credentials: 'include',
-					headers: { Accept: 'application/json' }
-				}),
-				fetch(makeUrl('EXPENSE'), {
-					method: 'GET',
-					credentials: 'include',
-					headers: { Accept: 'application/json' }
-				})
-			]);
-
-			if (!incRes.ok)
-				throw new Error(`INCOME ${incRes.status} ${incRes.statusText}: ${await incRes.text()}`);
-			if (!expRes.ok)
-				throw new Error(`EXPENSE ${expRes.status} ${expRes.statusText}: ${await expRes.text()}`);
-
-			const [incRaw, expRaw] = await Promise.all([incRes.json(), expRes.json()]);
-
-			const income = asTxnArray(incRaw);
-			const expense = asTxnArray(expRaw);
-
-			const result = {
-				range: { dateFrom: start.toISOString(), dateTo: end.toISOString() },
-				income,
-				expense,
-				incomeMeta: (incRaw as any)?.pagination ?? null,
-				expenseMeta: (expRaw as any)?.pagination ?? null
-			};
-			console.log('this (monthly) result:', result);
-			return result;
-		} catch (err) {
-			console.error('Failed to load monthly:', err);
-			throw err;
-		}
+	function toColors(arr: Array<{ category?: { color?: string } }>): string[] {
+		let colors: string[] = [];
+		colors = arr.map((e) => e?.category?.color ?? '#999999'); // fallback color
+		// console.log(colors);
+		return colors;
 	}
 
+	const toSeries = (arr: any[]) =>
+		arr.map((t) => Number(t.amount)).map((n) => (Number.isFinite(n) ? Math.abs(n) : 0));
+
+	function toLabels(arr: any[]) {
+		let labels: string[] = [];
+		labels = arr.map((e: { category: { name: any } }) => e?.category?.name ?? 'idk'); // fallback color
+		// console.log('labels', labels);
+		return labels;
+	}
+
+	// Input: parallel arrays of equal length
+	// Output: deduped arrays aligned by unique label (first occurrence order)
+	function bucketsAll(
+		seriesIn: number[],
+		colorsIn: string[],
+		labelsIn: string[]
+	): { series: number[]; colors: string[]; labels: string[] } {
+		// Align lengths just in case
+		const n = Math.min(seriesIn.length, colorsIn.length, labelsIn.length);
+
+		// Use a Map to preserve insertion order (first occurrence wins for color)
+		const acc = new Map<string, { sum: number; color: string }>();
+
+		for (let i = 0; i < n; i++) {
+			const lbl = labelsIn[i] ?? 'idk';
+			const valRaw = seriesIn[i];
+			const val = Number.isFinite(valRaw) ? Math.abs(Number(valRaw)) : 0;
+			const col = colorsIn[i] ?? '#999999';
+
+			if (!acc.has(lbl)) {
+				acc.set(lbl, { sum: val, color: col });
+			} else {
+				const cur = acc.get(lbl)!;
+				cur.sum += val; // keep first color
+			}
+		}
+
+		// Unpack in insertion order
+		const labels: string[] = [];
+		const series: number[] = [];
+		const colors: string[] = [];
+
+		for (const [lbl, { sum, color }] of acc.entries()) {
+			labels.push(lbl);
+			series.push(sum);
+			colors.push(color);
+		}
+
+		return { series, colors, labels };
+	}
+
+	const incseries = toSeries($incomeSeries);
+	const inccolors = toColors($incomeSeries);
+	const inclabels = toLabels($incomeSeries);
+	const incgrouped = bucketsAll(incseries, inccolors, inclabels);
+
+
+	const expseries = toSeries($expenseSeries);
+	const expcolors = toColors($expenseSeries);
+	const explabels = toLabels($expenseSeries);
+	const expgrouped = bucketsAll(expseries, expcolors, explabels);
+	console.log(expgrouped)
+	
 	// common pie opts
 	const pieCommon: ApexOptions = {
 		chart: {
@@ -110,16 +112,16 @@
 
 	const expenseOptions: ApexOptions = {
 		...pieCommon,
-		series: [40, 25, 20, 15],
-		colors: ['#EF4444', '#F97316', '#EAB308', '#06B6D4'],
-		labels: ['Food', 'Rent', 'Utilities', 'Entertainment']
+		series: expgrouped.series,
+		colors: expgrouped.colors,
+		labels: expgrouped.labels
 	};
 
 	const incomeOptions: ApexOptions = {
 		...pieCommon,
-		series: [190, 20, 10],
-		colors: ['#22C55E', '#3B82F6', '#A855F7'],
-		labels: ['Salary', 'Investments', 'Other']
+		series: incgrouped.series,
+		colors: incgrouped.colors,
+		labels: incgrouped.labels
 	};
 </script>
 
