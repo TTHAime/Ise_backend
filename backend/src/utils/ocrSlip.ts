@@ -1,11 +1,17 @@
 import sharp from 'sharp';
 import { createWorker, type Worker } from 'tesseract.js';
 
-//Worker lifecycle
+/**
+ * Tesseract worker lifecycle
+ * - We keep a single shared worker Promise (`workerP`) to avoid repeated spins.
+ * - After a certain number of jobs (MAX_JOBS_BEFORE_RESET), we restart the worker
+ *   to mitigate memory leaks or accuracy degradation over long runs.
+ */
 let workerP: Promise<Worker> | null = null;
 let jobsProcessed = 0;
 const MAX_JOBS_BEFORE_RESET = 500;
 
+// Preload (create) a Tesseract worker if it doesn't exist.
 async function preloadWorker(langs = 'tha+eng') {
   if (!workerP) {
     workerP = createWorker(langs);
@@ -40,7 +46,15 @@ export interface OcrTransaction {
   rawText: string;
 }
 
+/**
+ * Perform OCR on a bank slip image buffer and extract structured fields.
+ * Processing pipeline:
+ *  1) Image pre-processing with Sharp to improve OCR quality
+ *  2) OCR with Tesseract.js
+ *  3) Post-processing: normalize text and extract amount/date/time/bank/ref
+ */
 export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
+  // Image pre-processing
   const processed = await sharp(buffer)
     .resize(2400, null, { withoutEnlargement: true })
     .grayscale()
@@ -55,21 +69,29 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
   const result = await worker.recognize(processed);
   jobsProcessed++;
 
+  // Normalize whitespace for simpler pattern matching
   const rawText = result.data.text;
   const text = rawText.replace(/\s+/g, ' ').trim();
 
-  // ปรับปรุงการดึงจำนวนเงิน - แม่นยำสูงสุด
+  /**
+   * Extract the most plausible amount (numeric) from the text.
+   * Strategy:
+   *  - Use multiple patterns (with/without decimals/commas, with context keywords)
+   *  - Score candidates by pattern rank, context, decimal precision, comma usage
+   *  - Penalize obvious false positives (years/days)
+   * Returns a normalized string without commas (e.g. "1234.56"), or null.
+   */
   function extractAmount(text: string): string | null {
     const patterns = [
-      // จำนวนเงินที่มีบริบท
+      // Values with contextual keywords (Thai/English)
       /(?:จำนวน|amount|รวม|total|ยอด|เงิน)[\s:]*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s|$|บาท)/gi,
-      // รูปแบบมาตรฐาน 1,234.56
+      // Standard with decimals (1,234.56)
       /(\d{1,3}(?:,\d{3})*\.\d{2})/g,
-      // รูปแบบไม่มีทศนิยม 1,234
+      // Integer with thousand separators (1,234)
       /(\d{1,3}(?:,\d{3})+)/g,
-      // รูปแบบเลขธรรมดา 1234.56
+      // Plain decimal with >= 3 leading digits (1234.56)
       /(\d{3,}\.\d{2})/g,
-      // รูปแบบไม่มีคอมมา แต่มีทศนิยม
+      // No comma but decimal with >= 4 leading digits
       /(\d{4,}\.\d{2})/g,
     ];
 
@@ -83,9 +105,9 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
         const numericValue = parseFloat(amountText.replace(/,/g, ''));
 
         if (numericValue >= 0.01 && numericValue <= 99999999) {
-          let score = 10 - i; // pattern แรกได้คะแนนสูงสุด
+          let score = 10 - i; // earlier patterns rank higher by default
 
-          // เพิ่มคะแนนตามบริบท
+          // Contextual bonus
           const context = match[0].toLowerCase();
           if (
             context.includes('จำนวน') ||
@@ -96,7 +118,7 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
             score += 5;
           }
 
-          // เพิ่มคะแนนถ้ามีทศนิยม 2 ตำแหน่ง
+          // Prefer two decimal places (currency-like)
           if (
             amountText.includes('.') &&
             amountText.split('.')[1]?.length === 2
@@ -104,12 +126,12 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
             score += 3;
           }
 
-          // เพิ่มคะแนนถ้ามีคอมมา
+          // Prefer thousand separators (1,234.56)
           if (amountText.includes(',')) {
             score += 2;
           }
 
-          // ลดคะแนนสำหรับค่าที่น่าจะเป็นปีหรือเวลา
+          // Penalize likely years/dates
           if (numericValue > 1900 && numericValue < 2100) score -= 3;
           if (numericValue <= 31 && !amountText.includes('.')) score -= 2;
 
@@ -122,18 +144,24 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
     return candidates.length > 0 ? candidates[0].text.replace(/,/g, '') : null;
   }
 
-  // ปรับปรุงการดึงวันที่ - แม่นยำสูงสุด
+  /**
+   * Extract a plausible date string from the text.
+   * Supports:
+   *  - Thai short/long month names with Buddhist Era (พ.ศ.) or YY
+   *  - Numeric formats DD/MM/YYYY and DD-MM-YYYY
+   * Scores higher for valid day/month ranges and Thai BE years.
+   */
   function extractDate(text: string): string | null {
     const patterns = [
-      // รูปแบบไทยปี 4 หลัก (พ.ศ.)
+      // Thai short months + BE (พ.ศ. 25xx or 26xx)
       /(\d{1,2}\s*(?:ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(?:25|26)\d{2})/gi,
-      // รูปแบบไทยปี 2 หลัก
+      // Thai short months + 2-digit year
       /(\d{1,2}\s*(?:ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*\d{2})/gi,
-      // รูปแบบเต็มไทย
+      // Thai long months + full year
       /(\d{1,2}\s*(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:25|26|20)\d{2})/gi,
-      // รูปแบบ DD/MM/YYYY
+      // DD/MM/YYYY
       /(\d{1,2}\/\d{1,2}\/(?:20|25|26)\d{2})/g,
-      // รูปแบบ DD-MM-YYYY
+      // DD-MM-YYYY
       /(\d{1,2}-\d{1,2}-(?:20|25|26)\d{2})/g,
     ];
 
@@ -146,7 +174,7 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
         const dateText = match[1];
         let score = 10 - i;
 
-        // ตรวจสอบความถูกต้องของวันที่
+        // Validate day/month
         if (dateText.includes('/') || dateText.includes('-')) {
           const parts = dateText.split(/[/-]/);
           const day = parseInt(parts[0]);
@@ -159,12 +187,12 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
           }
         }
 
-        // เพิ่มคะแนนสำหรับปี พ.ศ.
+        // Bonus for BE years
         if (dateText.match(/25\d{2}|26\d{2}/)) {
           score += 3;
         }
 
-        // เพิ่มคะแนนสำหรับรูปแบบไทย
+        // Slight bonus for Thai month wording
         if (dateText.includes('ม.ค.') || dateText.includes('มกราคม')) {
           score += 2;
         }
@@ -177,16 +205,20 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
     return candidates.length > 0 ? candidates[0].text : null;
   }
 
-  // ปรับปรุงการดึงเวลา - แม่นยำสูงสุด
+  /**
+   * Extract a plausible time string.
+   * Supports HH:MM(:SS) with separators ':' or '.' and optional context words.
+   * Normalizes '.' to ':' before validation.
+   */
   function extractTime(text: string): string | null {
     const patterns = [
-      // รูปแบบมาตรฐาน HH:MM พร้อมบริบท
+      // With context words
       /(?:เวลา|time|at)[\s:]*(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)/gi,
-      // รูปแบบ HH:MM:SS
+      // HH:MM:SS
       /(\d{1,2}[:.]\d{2}[:.]\d{2})/g,
-      // รูปแบบ HH:MM
+      // HH:MM
       /(\d{1,2}[:.]\d{2})/g,
-      // รูปแบบ HH.MM
+      // HH.MM
       /(\d{1,2}\.\d{2})/g,
     ];
 
@@ -199,34 +231,33 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
         let timeText = match[1] || match[0];
         let score = 10 - i;
 
-        // ทำให้เป็นรูปแบบมาตรฐาน HH:MM
+        // Normalize to HH:MM(:SS)
         timeText = timeText.replace(/\./g, ':');
 
-        // ตรวจสอบความถูกต้องของเวลา
         const timeParts = timeText.split(':');
         const hours = parseInt(timeParts[0]);
         const minutes = parseInt(timeParts[1]);
-
+        // Basic HH:MM validation
         if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
           score += 5;
 
-          // เพิ่มคะแนนถ้ามีบริบท
+          // Context bonus
           const context = match[0].toLowerCase();
           if (context.includes('เวลา') || context.includes('time')) {
             score += 3;
           }
 
-          // เพิ่มคะแนนถ้าเป็นเวลาในช่วงที่สมเหตุสมผล
+          // Slight preference for typical business hours
           if (hours >= 6 && hours <= 22) {
             score += 2;
           }
 
-          // ลดคะแนนถ้าเป็นตัวเลขที่น่าจะเป็นอย่างอื่น
+          // penalties
           if (hours > 24 || minutes > 59) {
             score -= 10;
           }
 
-          // ลดคะแนนถ้าดูเหมือนจำนวนเงิน
+          // Penalize false positives that look like amounts (e.g., 12.3)
           if (
             timeText.includes('.') &&
             timeParts.length === 2 &&
@@ -244,7 +275,6 @@ export async function ocrSlip(buffer: Buffer): Promise<OcrTransaction> {
     return candidates.length > 0 ? candidates[0].text : null;
   }
 
-  // ปรับปรุงการจดจำธนาคาร
   function detectBank(text: string): string {
     const bankPatterns = [
       { code: 'KTB', patterns: ['กรุงไทย', 'KTB', 'Krung Thai'] },

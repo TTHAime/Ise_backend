@@ -36,7 +36,6 @@ model User {
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   
-  // relations
   categories      Category[]
   transactions    Transaction[]
 
@@ -72,7 +71,7 @@ model Session {
   expiresAt  DateTime @default(dbgenerated("(NOW() + interval '30 days')")) // ค่า default 30 วัน
 }
 
-/* หมวดหมู่รายรับ-รายจ่าย ที่ user สร้างเอง */
+
 model Category {
   id            String          @id @default(cuid())
   userId        String
@@ -81,7 +80,6 @@ model Category {
   icon          String?         // emoji หรือ icon name สำหรับ UI
   color         String?         // hex color code สำหรับ UI เช่น "#FF5733"
   description   String?         // รายละเอียดเพิ่มเติม
-  isActive      Boolean         @default(true) // สำหรับซ่อน/แสดง category
 
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
@@ -90,17 +88,17 @@ model Category {
   transactions  Transaction[]
 
   @@unique([userId, name, type]) // ป้องกันชื่อหมวดซ้ำในแต่ละ user + type
-  @@index([userId, type, isActive])
+  @@index([userId, type])
 }
 
-/* บันทึกรายการรับ-จ่าย */
+
 model Transaction {
   id            String          @id @default(cuid())
   userId        String
-  categoryId    String?         // optional - user สามารถไม่เลือกหมวดได้
+  categoryId    String?         
   type          TransactionType // INCOME หรือ EXPENSE
   amount        Decimal @db.Decimal(20, 2)
-  description   String?         // คำอธิบายสั้นๆ เช่น "ซื้อข้าวกล่อง", "เงินเดือนเดือนก.ย."
+  description   String?         // คำอธิบายสั้นๆ 
   
   date    DateTime        // วันที่เกิดธุรกรรม (user สามารถเลือกได้)
   

@@ -20,18 +20,22 @@ import reportRoutes from './routes/report.route';
 
 const PORT = config.PORT || 4000;
 const app = express();
+// for a reverse proxy (Render, Vercel, Nginx), trust proxy headers.
 app.set('trust proxy', 1);
 
+//Security headers via Helmet.
 app.use(
   helmet({
     contentSecurityPolicy: config.NODE_ENV === 'production',
     crossOriginEmbedderPolicy: config.NODE_ENV === 'production',
   })
 );
+/** Response compression for better bandwidth usage. */
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
 app.use(
   cors({
     origin: config.APP_ORIGIN,
@@ -72,6 +76,7 @@ app.use('/category', authenticate, categoryRoutes);
 app.use('/dashboard', authenticate, dashboardRoutes);
 app.use('/report', authenticate, reportRoutes);
 
+// Centralized error handler
 app.use(errorHandler);
 
 // changed: keep server ref for graceful shutdown
@@ -126,7 +131,13 @@ async function start() {
   });
 }
 
-// changed: graceful shutdown
+/**
+ * Graceful shutdown:
+ *  - Flip readiness off so /ready fails (orchestrator stops sending traffic).
+ *  - Close DB connections.
+ *  - Close HTTP server (stop accepting new requests; finish in-flight).
+ *  - Fallback exit if 'close' callback doesn't fire.
+ */
 async function shutdown(code = 0) {
   console.log('Shutting down server...');
   isReady = false;
@@ -153,7 +164,6 @@ process.on('SIGTERM', () => shutdown(0));
 process.on('SIGINT', () => shutdown(0));
 process.on('unhandledRejection', reason => {
   console.error('Unhandled Rejection:', reason);
-  // optional: shutdown to let platform restart
   shutdown(1);
 });
 process.on('uncaughtException', err => {

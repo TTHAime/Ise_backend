@@ -22,7 +22,7 @@ const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   fileFilter: imageFileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 }, // จำกัดขนาด 10MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // maxsize 10MB
 });
 
 export default upload;

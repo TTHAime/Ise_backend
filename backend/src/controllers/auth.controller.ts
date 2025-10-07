@@ -37,10 +37,9 @@ export const registerHandler = catchErrors(async (req, res) => {
     ...req.body,
     userAgent: req.headers['user-agent'],
   });
-  // call service
   const { user, accessToken, refreshToken } = await createAccount(request);
   await setDefaultCategories(user.id);
-  // return response
+
   return setAuthCookie({ res, accessToken, refreshToken })
     .status(CREATED)
     .json(user);
@@ -132,20 +131,17 @@ export const googleAuthStartHandler = catchErrors(async (req, res) => {
   const url = createGoogleAuthUrl(state);
   // Server-side redirect
   return res.redirect(303, url);
-  // return res.status(OK).json({ url });
 });
 
 export const googleAuthCallbackHandler = catchErrors(async (req, res) => {
   const { code, state } = req.query as { code?: string; state?: string };
   appAssert(code, BAD_REQUEST, 'Missing code');
 
-  // ตรวจ state ป้องกัน CSRF (ปลอดภัย)
+  // ป้องกัน CSRF
   const stateCookie = req.cookies?.g_state;
   if (stateCookie && state) {
-    // ถ้ามี cookie และ state ให้ตรวจให้ตรงกัน
     appAssert(state === stateCookie, BAD_REQUEST, 'Invalid state');
   } else if (!stateCookie) {
-    // ถ้าไม่มี cookie เลย ให้เตือน
     console.warn('Missing state cookie - possible CSRF risk');
   }
 

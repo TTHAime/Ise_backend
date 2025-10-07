@@ -27,6 +27,7 @@ import { selectUserWithoutPassword } from '../utils/omitPassword';
 import { OAuth2Client, TokenPayload } from 'google-auth-library';
 import { setDefaultCategories } from './category.service';
 
+/** 24 hours in ms – used to decide when to extend session/refresh token. */
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export type CreateAccountParams = {
@@ -41,6 +42,7 @@ export const createAccount = async (data: CreateAccountParams) => {
   });
   appAssert(!existingUser, CONFLICT, 'Email already in use');
 
+  // Hashes password.
   const passwordHash = await hashValue(data.password);
 
   const user = await prisma.user.create({
@@ -59,6 +61,7 @@ export const createAccount = async (data: CreateAccountParams) => {
     },
   });
 
+  // Creates an email verification code and sends an email
   const url = `${config.APP_ORIGIN}/email/verify/${verificationCode.id}`;
   try {
     await sendMail({
@@ -70,6 +73,7 @@ export const createAccount = async (data: CreateAccountParams) => {
     console.error('Failed to send verification email:', error);
   }
 
+  // initial session + tokens
   const session = await prisma.session.create({
     data: {
       userId: user.id,
@@ -139,6 +143,7 @@ export const loginUser = async ({
 };
 
 export const refreshUserAccessToken = async (refreshToken: string) => {
+  //Validates refresh token and session.
   const { payload } = verifyToken<RefreshTokenPayload>(refreshToken, {
     secret: refreshTokenSignOptions.secret,
   });
@@ -186,12 +191,13 @@ export const refreshUserAccessToken = async (refreshToken: string) => {
   };
 };
 export const verifyEmail = async (code: string) => {
+  // Verify email using a verification code
   const validCode = await prisma.verificationCode.findFirst({
     where: {
       id: code,
       type: VerificationCodeType.EmailVerification,
       expiresAt: {
-        gt: new Date(), // ยังไม่หมดอายุ
+        gt: new Date(), //not expired
       },
     },
   });
@@ -213,6 +219,11 @@ export const verifyEmail = async (code: string) => {
   };
 };
 
+/**
+ * Send a password reset email with a short-lived verification code.
+ * - Rate-limited: at most ~2 codes per 5 minutes (count <= 1).
+ * - Returns messageId and reset URL for logging/tests.
+ */
 export const sendPasswordResetEmail = async (email: string) => {
   const user = await prisma.user.findUnique({
     where: { email },
@@ -236,9 +247,9 @@ export const sendPasswordResetEmail = async (email: string) => {
   const expiresAt = addHours(new Date(), 1);
   const verificationCode = await prisma.verificationCode.create({
     data: {
-      userId: user.id, // user._id → Prisma จะใช้ id ที่ map กับ schema
-      type: 'PasswordReset', // ต้องตรงกับ enum VerificationCodeType
-      expiresAt: expiresAt, // กำหนดวันหมดอายุ
+      userId: user.id,
+      type: 'PasswordReset',
+      expiresAt: expiresAt,
     },
   });
 
@@ -264,10 +275,17 @@ export const sendPasswordResetEmail = async (email: string) => {
     );
   }
 };
+
 type ResetPasswordParams = {
   password: string;
   verificationCode: string;
 };
+
+/**
+ * Reset password with a valid verification code.
+ * - Hashes new password, updates user, deletes the code.
+ * - Revokes all existing sessions for the user (forces re-login).
+ */
 export const resetPassword = async ({
   password,
   verificationCode,
@@ -305,6 +323,7 @@ export const resetPassword = async ({
   };
 };
 
+/** Create a configured Google OAuth2 client instance. */
 const getOAuthClient = () =>
   new OAuth2Client({
     clientId: config.GOOGLE_CLIENT_ID,
@@ -312,6 +331,11 @@ const getOAuthClient = () =>
     redirectUri: config.OAUTH_REDIRECT_URI,
   });
 
+/**
+ * Generate Google OAuth authorization URL.
+ * - Uses "offline" access + "consent" to ensure refresh token issuance.
+ * - Attach `state` for CSRF protection (store+verify with a cookie or server session).
+ */
 export function createGoogleAuthUrl(state?: string) {
   const client = getOAuthClient();
   return client.generateAuthUrl({
@@ -322,6 +346,10 @@ export function createGoogleAuthUrl(state?: string) {
   });
 }
 
+/**
+ * Exchange authorization code for tokens and verify the ID token.
+ * Returns essential profile fields plus the raw tokens for caller use.
+ */
 export async function exchangeCodeAndGetProfile(code: string) {
   const client = getOAuthClient();
   const { tokens } = await client.getToken(code);
@@ -344,6 +372,12 @@ export async function exchangeCodeAndGetProfile(code: string) {
   };
 }
 
+/**
+ * Upsert user via Google profile.
+ * - If no user exists (by googleId/email): create + seed default categories.
+ * - If user exists but no googleId bound: link googleId and update profile.
+ * - Always creates a session and returns access/refresh tokens.
+ */
 export async function loginWithGoogleProfile(p: {
   googleId: string;
   email: string;
@@ -358,7 +392,6 @@ export async function loginWithGoogleProfile(p: {
     'Google email is not verified'
   );
 
-  // หา user ด้วย googleId หรือ email
   let user = await prisma.user.findFirst({
     where: { OR: [{ googleId: p.googleId }, { email: p.email }] },
   });

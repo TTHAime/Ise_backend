@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 
+// converts various numeric-like values into a JavaScript number.
 export const toNum = (
   v: number | string | bigint | Prisma.Decimal | null | undefined
 ): number => {
@@ -19,6 +20,7 @@ export const toStr = (
   return (v as Prisma.Decimal).toString();
 };
 
+// Calculates the percentage change between two numeric values
 export const pctChange = (current: number, previous: number): number => {
   if (previous === 0) return current === 0 ? 0 : 100;
   return ((current - previous) / previous) * 100;

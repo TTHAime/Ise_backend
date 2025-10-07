@@ -4,6 +4,11 @@ import { Readable } from 'stream';
 
 export type OutputFormat = 'webp' | 'jpeg' | 'png';
 export type NamingMode = 'unique' | 'stable';
+/**
+ * Naming strategy:
+ *  - 'unique': append timestamp + random suffix to avoid collision.
+ *  - 'stable': use fixed name (useful for avatar/profile images).
+ */
 
 export interface UploadImg_CloundOptions {
   folder: string;
@@ -51,14 +56,14 @@ export async function uploadImgBuffer_Clound(
     .toFormat(format, { quality })
     .toBuffer();
 
-  // 2) public_id
+  // 2) Generate a `public_id` for Cloudinary
   const base = prefix;
   const publicId =
     naming === 'stable'
       ? `${base}` // ชื่อคงที่
       : `${base}_${Date.now()}_${randomSuffix()}`; // กันชน (ไม่ชนกัน)
 
-  // 3) อัปโหลดด้วย upload_stream
+  // 3) Upload via `upload_stream` for memory-only buffers.
   const stream = Readable.from(processed);
 
   const result: UploadApiResponse = await new Promise((resolve, reject) => {
@@ -67,7 +72,7 @@ export async function uploadImgBuffer_Clound(
         folder,
         public_id: publicId,
         resource_type: 'image',
-        overwrite, // ใช้เฉพาะกรณี stable แล้วต้องการเขียนทับ
+        overwrite,
       },
       (err, res) => (err ? reject(err) : resolve(res!))
     );

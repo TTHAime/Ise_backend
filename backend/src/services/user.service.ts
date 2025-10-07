@@ -34,11 +34,12 @@ export const updateProfileImg = async (input: updateProfileImgInput) => {
   let profileImage: string | undefined;
   let profileImagePublicId: string | undefined;
 
+  // Upload image if provided
   if (fileBuffer) {
     const img = await uploadImgBuffer_Clound(fileBuffer, {
       folder: 'profiles',
       prefix: `user_${userId}_profile`,
-      naming: 'stable',
+      naming: 'stable', // ensures same public_id for overwrites
       overwrite: true,
     });
     profileImage = img.secureUrl;

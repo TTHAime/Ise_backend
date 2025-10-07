@@ -1,7 +1,6 @@
 import { BAD_REQUEST, OK } from '../libs/http';
 import { getDashboardStats } from '../services/dashboard.service';
 import appAssert from '../utils/appAssert';
-
 import catchErrors from '../utils/catchErrors';
 
 export const getDashboardHandler = catchErrors(async (req, res) => {

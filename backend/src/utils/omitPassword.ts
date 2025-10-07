@@ -4,6 +4,7 @@ export const selectUserWithoutPassword = {
   displayName: true,
   profileImage: true,
   profileImagePublicId: false,
+  provider: true,
   verified: true,
   createdAt: true,
   updatedAt: true,

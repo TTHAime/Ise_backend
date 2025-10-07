@@ -43,13 +43,14 @@ export const getMonthlyReport = async (
   const monthEnd = endOfMonth(targetDate);
 
   const [monthStats, dailyStats, categoryStats] = await Promise.all([
+    // Totals per type for the month.
     prisma.transaction.groupBy({
       where: { userId, date: { gte: monthStart, lte: monthEnd } },
       by: ['type'],
       _sum: { amount: true },
       _count: { _all: true },
     }),
-
+    // Day-level totals (income/expense) for the month.
     prisma.transaction.groupBy({
       where: { userId, date: { gte: monthStart, lte: monthEnd } },
       by: ['date', 'type'],
@@ -57,7 +58,7 @@ export const getMonthlyReport = async (
       _count: { _all: true },
       orderBy: { date: 'asc' },
     }),
-
+    // Category totals within the month (both types).
     prisma.transaction.groupBy({
       where: { userId, date: { gte: monthStart, lte: monthEnd } },
       by: ['categoryId', 'type'],
@@ -66,7 +67,7 @@ export const getMonthlyReport = async (
       orderBy: { _sum: { amount: 'desc' } },
     }),
   ]);
-
+  // Helper to read sums safely.
   const sumAmt = (t: 'INCOME' | 'EXPENSE') =>
     Number(monthStats.find(x => x.type === t)?._sum.amount ?? 0);
 
@@ -74,7 +75,7 @@ export const getMonthlyReport = async (
   const totalExpense = sumAmt('EXPENSE');
   const totalCount = monthStats.reduce((s, x) => s + x._count._all, 0);
 
-  // รายวัน
+  // Build a date → rollup map for daily series.
   const dailyMap = new Map<
     string,
     { income: number; expense: number; count: number }
@@ -89,7 +90,7 @@ export const getMonthlyReport = async (
     dailyMap.set(dateKey, cur);
   }
 
-  // เตรียม category dictionary
+  // Collect category metadata
   const categoryIds = [
     ...new Set(
       categoryStats.map(cs => cs.categoryId).filter((id): id is string => !!id)
@@ -156,10 +157,10 @@ export interface YearlyReport {
     count: number;
   }>;
   categoryBreakdown: Array<{
-    categoryId: string; // ถ้าไม่มีหมวด จะคืน '__UNCATEGORIZED__'
+    categoryId: string; // '__UNCATEGORIZED__' when null in data
     categoryName: string;
-    categoryColor: string; // เทาเริ่มต้นถ้าไม่มี
-    categoryIcon: string; // 'question' หากไม่มี
+    categoryColor: string; // gray fallback if missing
+    categoryIcon: string; // 'question' fallback if missing
     type: 'INCOME' | 'EXPENSE';
     total: number;
     count: number;
@@ -175,7 +176,7 @@ export const getYearlyReport = async (
   const yearEnd = endOfYear(new Date(year, 0, 1));
 
   const [yearStats, perDayStats, categoryStats] = await Promise.all([
-    // รวมทั้งปี แยกตาม type
+    // Year totals per type.
     prisma.transaction.groupBy({
       where: { userId, date: { gte: yearStart, lte: yearEnd } },
       by: ['type'],
@@ -183,7 +184,7 @@ export const getYearlyReport = async (
       _count: { _all: true },
     }),
 
-    // รายวัน (แล้วไป roll-up เป็นรายเดือนในโค้ด)
+    // Day-level totals across the year (rolled up to months below).
     prisma.transaction.groupBy({
       where: { userId, date: { gte: yearStart, lte: yearEnd } },
       by: ['date', 'type'],
@@ -192,7 +193,7 @@ export const getYearlyReport = async (
       orderBy: { date: 'asc' },
     }),
 
-    // รายหมวดหมู่ตลอดทั้งปี
+    // Category totals across the year.
     prisma.transaction.groupBy({
       where: { userId, date: { gte: yearStart, lte: yearEnd } },
       by: ['categoryId', 'type'],
@@ -209,7 +210,7 @@ export const getYearlyReport = async (
   const totalExpense = sumAmt('EXPENSE');
   const transactionCount = yearStats.reduce((s, x) => s + x._count._all, 0);
 
-  // เตรียมโครง monthly 12 เดือน
+  // Initialize 12 monthly
   const monthly = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
     label: format(new Date(year, i, 1), 'LLL', { locale: th }), // 'ม.ค.', 'ก.พ.', ...
@@ -218,7 +219,7 @@ export const getYearlyReport = async (
     count: 0,
   }));
 
-  // roll-up รายวัน → รายเดือน
+  // Roll up per-day → per-month buckets.
   for (const d of perDayStats) {
     const mIdx = new Date(d.date).getMonth(); // 0..11
     const amt = Number(d._sum.amount ?? 0);
@@ -227,7 +228,7 @@ export const getYearlyReport = async (
     monthly[mIdx].count += d._count._all;
   }
 
-  // เตรียมข้อมูลหมวดหมู่
+  // Collect category metadata for all referenced categoryIds.
   const catIds = [
     ...new Set(
       categoryStats.map(cs => cs.categoryId).filter((id): id is string => !!id)

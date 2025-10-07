@@ -6,8 +6,8 @@ export const REFRESH_PATH = '/auth/refresh';
 
 const isDev = config.NODE_ENV === 'development';
 
-// - Dev: sameSite='lax', secure=false (สะดวกทดสอบ, ส่ง cookie ใน top-level redirect เช่น OAuth ได้)
-// - Prod: sameSite='none', secure=true (รองรับ cross-site fetch + OAuth redirect)
+// - Dev: sameSite='lax', secure=false
+// - Prod: sameSite='none', secure=true
 
 const decideSameSite = (): Exclude<
   CookieOptions['sameSite'],
@@ -51,13 +51,13 @@ export const clearAuthCookie = (res: Response) =>
     .clearCookie('accessToken', { path: '/' })
     .clearCookie('refreshToken', { path: REFRESH_PATH });
 
-// ใช้สำหรับ Google OAuth state (กัน CSRF)
+// for Google OAuth state (protect CSRF)
 export const setOAuthStateCookie = (res: Response, state: string) =>
   res.cookie('g_state', state, {
     httpOnly: true,
     sameSite: decideSameSite(), // 'lax' (dev) / 'none' (prod)
     secure: decideSecure(),
-    maxAge: 5 * 60 * 1000, // 5 นาที
+    maxAge: 5 * 60 * 1000, // 5 min
     path: '/auth/google',
   });
 

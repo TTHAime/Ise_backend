@@ -57,7 +57,7 @@ const handleMulterError = (res: Response, error: MulterError | Error) => {
     }
   }
 
-  // error จาก fileFilter (เช่น mimetype ไม่ผ่าน) มักเป็น Error ธรรมดา
+  // error จาก fileFilter (เช่น mimetype ไม่ผ่าน)
   return res.status(400).json({
     message: error.message || 'Invalid file',
     errorCode: 'UPLOAD_INVALID_FILE',
@@ -82,7 +82,7 @@ const errorHandler: ErrorRequestHandler = (error, req, res, next) => {
   if (error instanceof multer.MulterError || error?.name === 'MulterError') {
     return handleMulterError(res, error as MulterError);
   }
-  // บางกรณีคุณอาจโยน Error ออกมาจาก fileFilter เอง
+
   if (
     error instanceof Error &&
     req.headers['content-type']?.includes('multipart/form-data')

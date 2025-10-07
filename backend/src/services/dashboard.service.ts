@@ -13,7 +13,7 @@ export interface DashboardStats {
     expense: { current: number; previous: number; percentage: number };
   };
   incomeVsExpenseThisMonth: {
-    incomeSharePct: number; // % ของรายรับเมื่อเทียบกับรายจ่าย+รายรับในเดือนนี้
+    incomeSharePct: number;
     expenseSharePct: number;
   };
   topCategories: Array<{
@@ -23,7 +23,7 @@ export interface DashboardStats {
     categoryIcon: string;
     total: number;
     count: number;
-    percentage: number; // % ของหมวดนั้นเทียบกับ totalExpense เดือนนี้
+    percentage: number;
   }>;
   recentTransactions: Array<{
     id: string;
@@ -40,6 +40,7 @@ export interface DashboardStats {
 export const getDashboardStats = async (
   userId: string
 ): Promise<DashboardStats> => {
+  // Setup date ranges for current & previous months
   const now = new Date();
   const currentMonthStart = startOfMonth(now);
   const currentMonthEnd = endOfMonth(now);
@@ -47,9 +48,10 @@ export const getDashboardStats = async (
   const prev = subMonths(now, 1);
   const prevMonthStart = startOfMonth(prev);
   const prevMonthEnd = endOfMonth(prev);
-
+  //  Run all aggregate queries
   const [currentStatRaw, prevStatRaw, topCategoriesRaw, recentTransactionsRaw] =
     await Promise.all([
+      // Sum of income/expense for current month
       prisma.transaction.groupBy({
         where: {
           userId,
@@ -59,6 +61,7 @@ export const getDashboardStats = async (
         _sum: { amount: true },
         _count: { _all: true },
       }),
+      // Sum for previous month (used for comparison)
       prisma.transaction.groupBy({
         where: {
           userId,
@@ -67,6 +70,7 @@ export const getDashboardStats = async (
         by: ['type'],
         _sum: { amount: true },
       }),
+      // Top 5 expense categories this month
       prisma.transaction.groupBy({
         where: {
           userId,
@@ -80,6 +84,7 @@ export const getDashboardStats = async (
         orderBy: { _sum: { amount: 'desc' } },
         take: 5,
       }),
+      // 10 most recent transactions this month
       prisma.transaction.findMany({
         where: {
           userId,
@@ -98,7 +103,7 @@ export const getDashboardStats = async (
       }),
     ]);
 
-  // ----- สรุปเดือนปัจจุบัน -----
+  // --- Aggregate totals for current month ---
   const totalIncome = toNum(
     currentStatRaw.find(r => r.type === 'INCOME')?._sum.amount
   );
@@ -111,7 +116,7 @@ export const getDashboardStats = async (
     0
   );
 
-  // ----- เดือนก่อนหน้า สำหรับ comparison -----
+  // Get previous month totals for % comparison ---
   const prevIncome = toNum(
     prevStatRaw.find(r => r.type === 'INCOME')?._sum.amount
   );
@@ -119,7 +124,7 @@ export const getDashboardStats = async (
     prevStatRaw.find(r => r.type === 'EXPENSE')?._sum.amount
   );
 
-  // ----- เติม meta ของหมวดหมู่ -----
+  // --- Fetch metadata for top expense categories ---
   const catIds = topCategoriesRaw
     .map(r => r.categoryId!)
     .filter(Boolean) as string[];
@@ -131,6 +136,7 @@ export const getDashboardStats = async (
     : [];
   const catMap = new Map(catMetas.map(c => [c.id, c]));
 
+  // --- Merge category totals with metadata ---
   const topCategories = topCategoriesRaw.map(r => {
     const meta = catMap.get(r.categoryId!);
     const total = toNum(r._sum.amount);
@@ -145,6 +151,7 @@ export const getDashboardStats = async (
     };
   });
 
+  // Normalize recent transactions
   const recentTransactions = recentTransactionsRaw.map(t => ({
     id: t.id,
     amount: toNum(t.amount as unknown as Prisma.Decimal),
@@ -156,6 +163,7 @@ export const getDashboardStats = async (
     categoryIcon: t.category?.icon ?? 'tag',
   }));
 
+  //  Calculate income vs expense share for current month ---
   const sumThisMonth = totalIncome + totalExpense;
   const incomeVsExpenseThisMonth = {
     incomeSharePct: sumThisMonth > 0 ? (totalIncome / sumThisMonth) * 100 : 0,
