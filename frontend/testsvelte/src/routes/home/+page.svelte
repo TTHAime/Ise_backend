@@ -4,7 +4,7 @@
 	import CompareCard from '$lib/components/Compare-line.svelte';
 	import Piechart from '$lib/components/Piechart.svelte';
 	import type { ApexOptions } from 'apexcharts';
-	import { user, refreshUser, logout } from '$lib/components/auth';
+	import { refreshUser } from '$lib/components/auth';
 	import { onMount } from 'svelte';
 	import {
 		incomeSeries,
@@ -20,13 +20,11 @@
 		// await loadAll();
 	}
 
-	let data = $state();
-
-	onMount(() => {
-		refreshUser();
-		load();
-		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
-	});
+	// onMount(() => {// alredy load in effect
+	// 	refreshUser();
+	// 	load();
+	// 	// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error
+	// });
 
 	function toColors(arr: Array<{ category?: { color?: string } }>): string[] {
 		let colors: string[] = [];
@@ -90,7 +88,7 @@
 	$effect(() => {
 		(async () => {
 			await refreshUser();
-			await loadAll(); // fill the stores
+			await loadAll();
 		})();
 	});
 
@@ -128,7 +126,6 @@
 		colors: incgrouped.colors,
 		labels: incgrouped.labels
 	};
-	console.log($Dashboard)
 	ready = true; // now show the page
 </script>
 
