@@ -75,5 +75,5 @@ export const deleteTransactionHandler = catchErrors(async (req, res) => {
 
   await deleteTransaction(id, userId);
 
-  return res.status(OK).json({ messgae: 'Transaction deleted successfully' });
+  return res.status(OK).json({ message: 'Transaction deleted successfully' });
 });

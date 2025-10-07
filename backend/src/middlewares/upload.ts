@@ -13,7 +13,7 @@ const imageFileFilter: multer.Options['fileFilter'] = (req, file, cb) => {
   if (mimetype && extname) {
     cb(null, true);
   } else {
-    cb(new Error('Only image files (jpeg, jpg, png, gif) are allowed!'));
+    cb(new Error('Only image files (jpeg, jpg, png, gif, webp) are allowed!'));
   }
 };
 

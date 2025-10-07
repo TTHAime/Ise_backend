@@ -1,3 +1,0 @@
-https://documenter.getpostman.com/view/42732034/2sB3HopedV
-
-postman port bug ต้อง port 4000 แทน 3000

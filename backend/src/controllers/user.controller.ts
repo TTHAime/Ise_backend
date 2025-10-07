@@ -58,6 +58,6 @@ export const changePasswordHandler = catchErrors(async (req, res) => {
   await changePassword(userId, data);
 
   return clearAuthCookie(res).status(OK).json({
-    messgae: 'Password change successfully. Please login again',
+    message: 'Password change successfully. Please login again',
   });
 });

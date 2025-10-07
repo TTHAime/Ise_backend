@@ -4,9 +4,9 @@
   "description": "",
   "main": "server.ts",
   "scripts": {
-    "dev": "tsx watch src/server.ts indek.d.ts",
-    "build": "tsc && copy package.json dist\\",
-    "start": "node server.js",
+    "dev": "tsx watch src/server.ts index.d.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint src --ext .ts,.js",
@@ -27,6 +27,7 @@
     "@types/streamifier": "^0.1.2",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.7.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@eslint/js": "^9.35.0",
     "@types/bcrypt": "^6.0.0",
+    "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",

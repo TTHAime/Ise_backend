@@ -13,6 +13,6 @@
     "types": ["node"],
     "allowSyntheticDefaultImports": true
   },
-  "include": ["src/**/*.ts", "indek.d.ts"],
+  "include": ["src/**/*.ts", "index.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
