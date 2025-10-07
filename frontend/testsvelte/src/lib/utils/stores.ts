@@ -100,11 +100,41 @@ const monthRange = (d = new Date()) => {
 	return { start, end };
 };
 
-async function loadData(when?: Date) {
-	const { start, end } = monthRange(when);
+export async function loadData(): Promise<void>;
+export async function loadData(when: Date | string): Promise<void>;
+export async function loadData(from: Date | string, to: Date | string): Promise<void>;
+
+export async function loadData(a?: Date | string, b?: Date | string) {
+	// --- helpers ---
+	const toDate = (x: Date | string) => (x instanceof Date ? x : new Date(x));
+	const iso = (d: Date) => d.toISOString();
+
+	// --- resolve start/end ---
+	let start: Date;
+	let end: Date;
+
+	if (a && b) {
+		// two-arg mode: custom range
+		let from = toDate(a);
+		let to = toDate(b);
+		// normalize
+		from = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+		to   = new Date(to.getFullYear(),   to.getMonth(),   to.getDate());
+		// swap if needed
+		if (to < from) [from, to] = [to, from];
+		start = from;
+		end = to;
+	} else {
+		// zero/one-arg mode: use monthRange like before
+		const base = a ? toDate(a) : new Date();
+		const r = monthRange(base); // { start: Date, end: Date }
+		start = r.start;
+		end = r.end;
+	}
+
 	const paramsBase = new URLSearchParams({
-		dateFrom: start.toISOString(),
-		dateTo: end.toISOString()
+		dateFrom: iso(start),
+		dateTo: iso(end)
 	});
 
 	const makeUrl = (type: 'INCOME' | 'EXPENSE') => {
@@ -129,7 +159,7 @@ async function loadData(when?: Date) {
 		incomeSeries.set(income);
 		expenseSeries.set(expense);
 	} catch (err) {
-		console.error('Failed to load monthly:', err);
+		console.error('Failed to load range:', err);
 		incomeSeries.set([]);
 		expenseSeries.set([]);
 		throw err;

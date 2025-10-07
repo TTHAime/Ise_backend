@@ -13,7 +13,7 @@
 		Totalexpense,
 		Dashboard,
 		loadAll,
-	} from '$lib/stores';
+	} from '$lib/utils/stores';
 
 	async function load() {
 		// data = loadData(new Date(2025, 9, 13)); //y m d ? month little error

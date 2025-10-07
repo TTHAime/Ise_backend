@@ -2,6 +2,9 @@
 	import ChartCard from '$lib/components/Compare-line.svelte';
 	import type { ApexAxisChartSeries } from 'apexcharts';
 	import type { PeriodKey, Granularity } from '$lib/utils/Charttimehelpers';
+	import { buildSeriesFromTransactions } from '$lib/utils/Chartseries';
+	import type { Tx } from '$lib/utils/Chartseries';
+	import { loadData, expenseSeries, incomeSeries } from '$lib/utils/stores';
 	import {
 		makeLast7Days,
 		makeLast30Days,
@@ -18,6 +21,28 @@
 
 	let fromStr = '';
 	let toStr = '';
+
+	// inside a Svelte component (so $store works)
+	async function getLineData(len?: number): Promise<Tx[]> {
+		await loadData('2025-08-01', '2025-10-08');
+		const src = $incomeSeries ?? [];
+		const srcexp = $expenseSeries ?? [];
+		const take = typeof len === 'number' ? Math.min(len, src.length) : src.length;
+		const takexp = typeof len === 'number' ? Math.min(len, srcexp.length) : srcexp.length;
+
+		const txs: Tx[] = src.slice(0, take).map((r) => ({
+			amount: Number(r.amount) || 0,
+			date: r.date, // keep API date; or new Date(r.date).toISOString()
+			type: 'INCOME'
+		}));
+		const txsexp: Tx[] = srcexp.slice(0, takexp).map((r) => ({
+			amount: Number(r.amount) || 0,
+			date: r.date, // keep API date; or new Date(r.date).toISOString()
+			type: 'EXPENSE'
+		}));
+
+		return txs.concat(txsexp);
+	}
 
 	function demoSeries(len: number) {
 		const income = Array.from({ length: len }, (_, i) => 1200 + i * 22 + (i % 3) * 40);
@@ -36,17 +61,21 @@
 			const cats = makeLast7Days();
 			categories = cats.labels;
 			granularity = 'daily';
-			series = demoSeries(cats.length);
+			const txData = await getLineData();
+			series = buildSeriesFromTransactions(txData, { kind: '7d' }).series;
+			console.log('yay', series);
 		} else if (p === 'Last 30 days') {
 			const cats = makeLast30Days('daily');
 			categories = cats.labels;
 			granularity = 'daily';
-			series = demoSeries(cats.length);
+			const txData = await getLineData();
+			series = buildSeriesFromTransactions(txData, { kind: '30d' }).series;
 		} else if (p === 'Last 90 days') {
 			const cats = makeLast90DaysWeeklyByMonth();
 			categories = cats.labels;
-			granularity = 'weekly'; 
-			series = demoSeries(cats.length);
+			granularity = 'weekly';
+			const txData = await getLineData();
+			series = buildSeriesFromTransactions(txData, { kind: '90d-weeklyByMonth' }).series;
 		} else {
 			loading = false;
 			return;
@@ -62,14 +91,22 @@
 		});
 		fromStr = valid.from.toISOString().slice(0, 10);
 		toStr = valid.to.toISOString().slice(0, 10);
-
+        console.log(fromStr)
 		loading = true;
 		period = 'Custom range';
-		granularity = g;
+		granularity = 'daily';
 
 		const cats = makeRangeCategories(valid, g);
-		categories = cats.labels;
-		series = demoSeries(cats.length);
+		const txData = await getLineData();
+		let tmi = buildSeriesFromTransactions(txData, {
+            kind: 'custom',
+			from: fromStr,
+			to: toStr,
+			granularity: 'weeklyByMonth'
+		});
+        series = tmi.series;
+        console.log('cars',series)
+        categories = cats.labels;
 		loading = false;
 	}
 
@@ -78,7 +115,7 @@
 </script>
 
 <!-- Controls (centered & vertically aligned) -->
-<div class="mb-4 flex flex-col items-center justify-center gap-3 md:flex-row md:gap-5 py-5">
+<div class="mb-4 flex flex-col items-center justify-center gap-3 py-5 md:flex-row md:gap-5">
 	<!-- Segmented presets -->
 	<div
 		class="inline-flex h-10 items-center overflow-hidden rounded-xl border border-gray-200 bg-white px-1 shadow-sm dark:border-gray-700 dark:bg-gray-800"
@@ -106,7 +143,7 @@
 		>
 	</div>
 
-	<h1 class="mx-1 self-center text-lg text-gray-600 dark:text-gray-300 font-bold">OR</h1>
+	<h1 class="mx-1 self-center text-lg font-bold text-gray-600 dark:text-gray-300">OR</h1>
 
 	<!-- Custom range (inputs + Apply) -->
 	<div class="flex h-10 items-center gap-2">
@@ -124,7 +161,7 @@
 		<div class="flex items-center gap-2">
 			<label for="to-date" class="text-xs text-gray-500 dark:text-gray-400">To</label>
 			<input
-                id="to-date"
+				id="to-date"
 				type="date"
 				bind:value={toStr}
 				max={new Date().toISOString().slice(0, 10)}
@@ -145,18 +182,18 @@
 	</div>
 </div>
 <div class="px-20">
-    <ChartCard
-        {series}
-        {categories}
-        initialPeriod={period}
-        currency="฿"
-        {loading}
-        onChangePeriod={(p) => {
-            if (p === 'Last 7 days') fetchAnalytics('Last 7 days');
-            else if (p === 'Last 30 days') fetchAnalytics('Last 30 days');
-            else if (p === 'Last 90 days') fetchAnalytics('Last 90 days');
-            else period = 'Custom range';
-        }}
-        onLoaded={() => {}}
-    />
+	<ChartCard
+		{series}
+		{categories}
+		initialPeriod={period}
+		currency="฿"
+		{loading}
+		onChangePeriod={(p) => {
+			if (p === 'Last 7 days') fetchAnalytics('Last 7 days');
+			else if (p === 'Last 30 days') fetchAnalytics('Last 30 days');
+			else if (p === 'Last 90 days') fetchAnalytics('Last 90 days');
+			else period = 'Custom range';
+		}}
+		onLoaded={() => {}}
+	/>
 </div>
