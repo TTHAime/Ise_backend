@@ -1,0 +1,48 @@
+# -----------------------------
+# Node & dependency files
+# -----------------------------
+node_modules
+npm-debug.log
+pnpm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# -----------------------------
+# Build output / cache
+# -----------------------------
+dist
+.prisma
+coverage
+.cache
+
+# -----------------------------
+# Environment / secrets
+# -----------------------------
+.env
+
+# -----------------------------
+# IDE / Editor / OS metadata
+# -----------------------------
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+# TypeScript / Configs
+# -----------------------------
+tsconfig.tsbuildinfo
+
+# -----------------------------
+# Project-specific data files
+# -----------------------------
+*.traineddata
+*.log
+
+# -----------------------------
+# Git / Lint / Formatter
+# -----------------------------
+.git
+.gitignore
+.prettierignore
+.eslintcache
