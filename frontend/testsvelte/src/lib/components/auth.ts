@@ -1,5 +1,5 @@
 import {writable} from 'svelte/store';
-import { ApiRoot,loadAll} from '$lib/stores';
+import { ApiRoot,loadAll} from '$lib/utils/stores';
 
 export const user = writable(null);
 

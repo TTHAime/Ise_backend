@@ -54,6 +54,7 @@
 	},
 	"dependencies": {
 		"@iconify/svelte": "^5.0.2",
+		"jspdf": "^3.0.3",
 		"svelte-awesome-color-picker": "^4.0.2"
 	}
 }
