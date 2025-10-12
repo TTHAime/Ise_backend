@@ -23,6 +23,7 @@
   "packageManager": "pnpm@10.17.0",
   "dependencies": {
     "@prisma/client": "^6.15.0",
+    "@supabase/supabase-js": "^2.75.0",
     "@types/multer": "^2.0.0",
     "@types/streamifier": "^0.1.2",
     "bcrypt": "^6.0.0",
