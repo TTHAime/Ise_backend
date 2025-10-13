@@ -4,6 +4,7 @@ import { config } from './libs/config';
 import { prisma } from './libs/prisma';
 import express from 'express';
 import cors from 'cors';
+import sgMail, { ClientResponse, MailDataRequired } from '@sendgrid/mail';
 import errorHandler from './middlewares/errorHandler';
 import { OK } from './libs/http';
 import authRoutes from './routes/auth.route';
@@ -123,6 +124,38 @@ async function start() {
       console.log('[OCR] Tesseract quick check OK');
     } catch (err) {
       console.warn('[OCR] Tesseract quick check failed (non-fatal):', err);
+    }
+  })();
+
+  (async () => {
+    try {
+      sgMail.setApiKey(config.SMTP_PASS);
+      const [res]: [ClientResponse, unknown] = await Promise.race([
+        sgMail.send({
+          to: config.EMAIL_SENDER, // sandbox เปิดอยู่ ต่อให้ใส่ก็ไม่ส่งจริง
+          from: { name: 'ISE Expense Tracker', email: config.EMAIL_SENDER },
+          subject: 'SendGrid sandbox ping',
+          text: 'Sandbox test only. No real email will be sent.',
+          html: '<strong>Sandbox test only. No real email will be sent.</strong>',
+          mailSettings: { sandboxMode: { enable: true } },
+        } as MailDataRequired),
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error('SendGrid ping timeout')), 5000)
+        ),
+      ]);
+
+      const ok = res.statusCode >= 200 && res.statusCode < 300;
+      if (ok) {
+        console.log(`[SendGrid] sandbox OK: ${res.statusCode}`);
+      } else {
+        console.warn('[SendGrid] sandbox non-2xx:', res.statusCode);
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        console.warn('[SendGrid] ping failed (non-fatal):', err.message);
+      } else {
+        console.warn('[SendGrid] ping failed (non-fatal):', err);
+      }
     }
   })();
 

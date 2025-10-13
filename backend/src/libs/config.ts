@@ -29,10 +29,6 @@ const Env = z.object({
   CLOUDINARY_API_KEY: z.string().min(1, 'CLOUDINARY_API_KEY is required'),
   CLOUDINARY_API_SECRET: z.string().min(1, 'CLOUDINARY_API_SECRET is required'),
   // SMTP
-  SMTP_HOST: z.string().default('smtp-relay.brevo.com'),
-  SMTP_PORT: z.coerce.number().default(587),
-  SMTP_SECURE: z.coerce.boolean().default(false),
-  SMTP_USER: z.email('Must be valid email'),
   SMTP_PASS: z.string().min(1, 'SMTP password required'),
   EMAIL_SENDER: z.email('Must be valid email'),
 });

@@ -6,7 +6,7 @@ import {
   startOfYear,
 } from 'date-fns';
 import { prisma } from '../libs/prisma';
-import { th } from 'date-fns/locale';
+import { enUS } from 'date-fns/locale';
 
 export interface MonthlyReport {
   month: string;
@@ -130,7 +130,7 @@ export const getMonthlyReport = async (
   });
 
   return {
-    month: format(targetDate, 'MMMM', { locale: th }),
+    month: format(targetDate, 'MMMM', { locale: enUS }),
     year,
     totalIncome,
     totalExpense,
@@ -213,7 +213,7 @@ export const getYearlyReport = async (
   // Initialize 12 monthly
   const monthly = Array.from({ length: 12 }, (_, i) => ({
     month: i + 1,
-    label: format(new Date(year, i, 1), 'LLL', { locale: th }), // 'ม.ค.', 'ก.พ.', ...
+    label: format(new Date(year, i, 1), 'LLL', { locale: enUS }), // 'Jan', 'Feb', 'Mar', ...
     income: 0,
     expense: 0,
     count: 0,
