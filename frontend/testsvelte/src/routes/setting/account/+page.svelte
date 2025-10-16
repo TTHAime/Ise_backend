@@ -3,6 +3,7 @@
     import UploadImage from "$lib/components/UploadImage.svelte";
     import { onMount } from 'svelte';
     import {refreshUser, user} from '$lib/components/auth'
+    import { ApiRoot } from "$lib/utils/stores";
     import userpic from "$lib/assets/userpic.png";//get user pic api later,default
 
     //Upload Profile Image
@@ -38,7 +39,7 @@
         if(file === null) return;
         const fd = new FormData();
         if(file) fd.append('image', file);
-        const response = await fetch('http://localhost:4000/user/profileImg', {method: 'PATCH', credentials: 'include', body: fd});
+        const response = await fetch(`${ApiRoot}user/profileImg`, {method: 'PATCH', credentials: 'include', body: fd});
 
         if(!response.ok)
         {
@@ -50,7 +51,7 @@
     }
 
     async function getUser(){ //Get user data from backend
-        const response = await fetch('http://localhost:4000/user',{
+        const response = await fetch(`${ApiRoot}user`,{
             method: 'GET',
             credentials: 'include',
         })
@@ -70,7 +71,7 @@
             name : userName
         }
 
-        const response = await fetch('http://localhost:4000/user/name', {
+        const response = await fetch(`${ApiRoot}user/name`, {
             method: 'PATCH',
             credentials: 'include',
             headers: {
@@ -151,7 +152,7 @@
 		let postData = {
 			email: email
 		};
-		const response = await fetch('http://localhost:4000/auth/password/forgot', {
+		const response = await fetch(`${ApiRoot}auth/password/forgot`, {
 			method: 'POST',
 			headers: { 'Content-type': 'application/json' },
 			body: JSON.stringify(postData)

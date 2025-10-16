@@ -1,7 +1,8 @@
 import { writable,get } from 'svelte/store';
 
 // ---- stores ----
-export const ApiRoot = 'http://localhost:4000/';
+// export const ApiRoot = 'http://localhost:4000/';
+export const ApiRoot = 'https://ise-ifwk.onrender.com/';
 export let Dashboard = writable<string[]>([]);
 
 export const incomeCategories = writable<CompleteCategory[]>([]);
