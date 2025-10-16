@@ -158,5 +158,5 @@ export const googleAuthCallbackHandler = catchErrors(async (req, res) => {
   clearOAuthStateCookie(res);
   setAuthCookie({ res, accessToken, refreshToken });
 
-  return res.redirect(`${config.APP_ORIGIN}home`);
+  return res.redirect(`${config.APP_ORIGIN}/home`);
 });
