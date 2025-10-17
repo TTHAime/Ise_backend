@@ -39,20 +39,14 @@
 			data: postdata,        // axios sends JSON for plain objects
 			validateStatus: () => true, // mimic fetch's response.ok check
 		});
-
-		console.log("Sending to API:", { email, password });
-		console.log(JSON.stringify(postdata));
-
 		if (response.status >= 200 && response.status < 300) {
-			alert("Form submitted successfully!");
-			navigateToHome(); // naja
+			// alert("Form submitted successfully!");
 			login();
+			navigateToHome();
 		} else {
 			alert("Error submitting form.");
 			const textBody =
-			typeof response.data === "string"
-				? response.data
-				: JSON.stringify(response.data);
+			typeof response.data === "string"? response.data : JSON.stringify(response.data);
 			alert(textBody);
 		}
 	}
