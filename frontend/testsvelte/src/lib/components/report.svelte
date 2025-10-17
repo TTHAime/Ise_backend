@@ -139,7 +139,7 @@
                 validateStatus: () => true,
             });
 
-            if(!(res.status >= 200 && res.status < 300)) throw new Error(`API ${res.status} ${res.statusText}`);
+            if(!(res.status >= 200 && res.status <= 300)) throw new Error(`API ${res.status} ${res.statusText}`);
             const report: MonthlyReport = toMonthlyReport(res.data?.data);
             dataMonthly = report;
             console.log("Load Data");
