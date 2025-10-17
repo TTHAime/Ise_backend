@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { invalidate, invalidateAll, refreshAll } from '$app/navigation';
 	import AddTransaction from '$lib/components/AddTransaction.svelte';
 	import TransactionCard from '$lib/components/TransactionCard.svelte';
 	import TransList from '$lib/components/TransactionList.svelte';
 	import { onMount } from 'svelte';
-	import { ApiRoot,expenseCategories,incomeCategories } from '$lib/utils/stores';
+	import { ApiRoot } from '$lib/utils/stores';
+	import axios from 'axios';
 
 	const symbolLeft = '<';
 	const symbolRight = '>';
@@ -55,7 +55,7 @@
 		Addshow = true;
 	}
 
-	async function SubmitTransaction(p) {
+	async function SubmitTransaction(p: { id: any; type: any; category: any; date: any; note: any; amount: any; currency?: string; recurrence?: "NEVER" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"; ends?: string; receipt?: File | null | undefined; }) {
 		const method = p.id ? 'PATCH' : 'POST';
 		const url = p.id
 			? `${ApiRoot}transaction/`.concat(p.id) // up
@@ -68,17 +68,17 @@
 			categoryId: p.category
 		};
 
-		const res = await fetch(url, {
+		const res = await axios(url, {
 			method,
-			credentials: 'include',
+			withCredentials: true,
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(body)
-		});
-
-		if (!res.ok) {
-			const msg = await res.text();
-			throw new Error('${method} ${url} failed: ${msg}');
-		}
+			data: JSON.stringify(body)
+		}).then(function (response) {
+			//yay
+		}).catch(function (error) {
+            alert({error});
+        });
+		
 
 		// close & clear
 		Addshow = false;
@@ -101,19 +101,23 @@
 
 	async function loadCategories() {
 		const [expRes, incRes] = await Promise.all([
-			fetch(`${ApiRoot}category?type=EXPENSE`, {
-				credentials: 'include',
+			axios.get(`${ApiRoot}category?type=EXPENSE`, {
+				withCredentials: true,
 				headers: { Accept: 'application/json' }
+			}).catch((err) => {
+				console.error("Error fetching expense categories:", err);
+				return { data: [] };
 			}),
-			fetch(`${ApiRoot}category?type=INCOME`, {
-				credentials: 'include',
+			axios.get(`${ApiRoot}category?type=INCOME`, {
+				withCredentials: true,
 				headers: { Accept: 'application/json' }
+			}).catch((err) => {
+				console.error("Error fetching income categories:", err);
+				return { data: [] };
 			})
 		]);
-		if (!expRes.ok) throw new Error(await expRes.text());
-		if (!incRes.ok) throw new Error(await incRes.text());
 
-		const [expRaw, incRaw] = (await Promise.all([expRes.json(), incRes.json()])) as [
+		const [expRaw, incRaw] = (await Promise.all([expRes.data, incRes.data])) as [
 			Category[],
 			Category[]
 		];
@@ -132,18 +136,16 @@
 	async function loadData() {
 		loadCategories();
 		try {
-			const res = await fetch(`${ApiRoot}dashboard`, {
+			const res = await axios(`${ApiRoot}dashboard`, {
 				method: 'GET',
-				credentials: 'include',
+				withCredentials: true,
 				headers: { Accept: 'application/json' }
+			}).catch(async (err) => {
+				console.error('Error fetching dashboard data:', err);
+				throw err;
 			});
 
-			if (!res.ok) {
-				const errText = await res.text();
-				throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
-			}
-
-			const data = await res.json();
+			const data = await res.data;
 			// console.log('dashboard:', data);
 			return data;
 		} catch (err) {
@@ -167,7 +169,7 @@
 	let PeriodIncome = $state(0);
 	let recentdata = $state([]);
 
-	function Parsedata(data) {
+	function Parsedata(data: { data: { totalExpense: number; totalIncome: number; recentTransactions: never[]; }; }) {
 		PeriodExpense = data.data.totalExpense;
 		PeriodIncome = data.data.totalIncome;
 		recentdata = data.data.recentTransactions;

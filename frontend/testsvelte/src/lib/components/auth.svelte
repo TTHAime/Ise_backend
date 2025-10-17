@@ -33,22 +33,17 @@
 		const postdata = { email, password };
 
 		const response = await axios(`${ApiRoot}auth/login`, {
-			method: "POST",
+			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
-			headers: { "Content-Type": "application/json" },
-			data: postdata,        // axios sends JSON for plain objects
-			validateStatus: () => true, // mimic fetch's response.ok check
-		});
-		if (response.status >= 200 && response.status < 300) {
-			// alert("Form submitted successfully!");
+			headers: { 'Content-Type': 'application/json' },
+			data: postdata, // axios sends JSON for plain objects
+			validateStatus: () => true // mimic fetch's response.ok check
+		}).then((res) => {
 			login();
 			navigateToHome();
-		} else {
-			alert("Error submitting form.");
-			const textBody =
-			typeof response.data === "string"? response.data : JSON.stringify(response.data);
-			alert(textBody);
-		}
+		}).catch((err) => {
+			alert('Error submitting form.',err);
+		});
 	}
 
 	async function handleSubmitsignup() {
@@ -57,32 +52,27 @@
 			email,
 			password,
 			confirmPassword,
-			name,
+			name
 		};
 
 		const response = await axios(`${ApiRoot}auth/register`, {
-			method: "POST",
+			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
-			headers: { "Content-Type": "application/json" },
-			data: postdata,        // axios sends JSON for plain objects
-			validateStatus: () => true, // so we can mimic fetch's response.ok
-		});
-
-		if (response.status >= 200 && response.status < 300) {
-			alert("Form submitted successfully!");
+			headers: { 'Content-Type': 'application/json' },
+			data: postdata, // axios sends JSON for plain objects
+			validateStatus: () => true // so we can mimic fetch's response.ok
+		}).then((res) => {
+			alert('Form submitted successfully!');
 			navigateToHome();
 			signup();
-		} else {
-			const textBody =
-			typeof response.data === "string"? response.data : JSON.stringify(response.data);
-			console.log("Response text:", textBody);
-			// alert(textBody);
-		}
+		}).catch((err) => {
+			console.log('Error submitting form.',err);
+		})
 	}
 
 	function loginWithGoogle() {
 		// IMPORTANT: use navigation, not fetch — cookies & redirects happen in the browser
-		window.location.href = `${ ApiRoot }auth/google`;
+		window.location.href = `${ApiRoot}auth/google`;
 	}
 
 	function navigateToHome() {
@@ -114,15 +104,15 @@
 		const postData = { email: emailForgetPassword };
 
 		const response = await axios(`${ApiRoot}auth/password/forgot`, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			data: postData,              
-			validateStatus: () => true,  
-		});
-
-		if (response.status >= 200 && response.status < 300) {
-			showMsg("Verification code sent to your email!", "success");
-		}
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			data: postData,
+			validateStatus: () => true
+		}).then((res) => {
+			mode = 'resetPass';
+		}).catch((err) => {
+			console.error("Error during sending reset password:", err);
+		})
 	}
 
 	async function verifyCode() {

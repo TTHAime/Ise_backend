@@ -5,7 +5,6 @@
     import {refreshUser, user} from '$lib/components/auth'
     import { ApiRoot } from "$lib/utils/stores";
     import userpic from "$lib/assets/userpic.png";//get user pic api later,default
-    import { ApiRoot } from "$lib/utils/stores";
 	import axios from "axios";
 
     //Upload Profile Image
@@ -46,13 +45,13 @@
             withCredentials: true,
             data: fd,
             validateStatus: () => true,
-        });
-
-        if(!(response.status >= 200 && response.status <= 300))
-        {
+        }).then((res) => {
+            //yay
+        }).catch((err) => {
             showUploadError = true;
             return;
-        }
+        });
+
 
         getUser();
     }
@@ -61,16 +60,18 @@
         const response = await axios(`${ApiRoot}user`,{
             method: "GET",
             withCredentials: true,
-        })
-
-        if(response.status >= 200 && response.status <= 300){
-            const resData = await response.data;
+        }).then((res) => {
+            const resData = res.data;
+            // console.table(resData);
             if(resData){
                 userName = resData.user?.displayName;
                 email = resData.user?.email;
                 profileImgURL = resData.user?.profileImage;
             }
-        }
+        }).catch((err) => {
+            console.error("Error during fetching user data:", err);
+        });
+
     }
 
     async function updateUserName(){
@@ -86,16 +87,14 @@
             },
             data: postData,
             validateStatus: () => true
-        });
-
-        if(response.status >= 200 && response.status <= 300) {
+        }).then((res) => {
             openUpdateSuccess = true;
             getUser();
             refreshUser();
-        }else{
+        }).catch((err) => {
             updatedErrorShow = true;
             return;
-        }
+        });
     }
 
     onMount(()=>{
@@ -165,13 +164,12 @@
 			headers: { 'Content-Type': "application/json" },
 			data: postData,              
 			validateStatus: () => true,  
-		});
-		if(response.status >= 200 && response.status < 300){
+		}).then((res) => {
             sendedResetPass = true;
-        }else{
+        }).catch((err) => {
             resetErrorShow = true;
             return;
-        }
+        });
 	}
 
 </script>
