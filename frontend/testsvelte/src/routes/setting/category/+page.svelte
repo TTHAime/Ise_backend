@@ -6,6 +6,8 @@
 	import { Modal } from 'flowbite-svelte';
     import { onMount } from 'svelte';
 	import { updated } from '$app/state';
+    import { ApiRoot } from '$lib/utils/stores';
+	import axios from 'axios';
 
     //Icon and Color Picker
     let color = $state(colord('#E74C3C')); //default color
@@ -151,14 +153,15 @@
         }
 
         try{ //Exception handling
-            const response = await fetch('http://localhost:4000/category', {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(postData)
-            })
-            if(!response.ok){
-                const data = await response.json().catch(() => null);
+            const response = await axios(`${ApiRoot}category`, {
+                method: "POST",
+                withCredentials: true,                      // like fetch { credentials: 'include' }
+                headers: { "Content-Type": "application/json" },
+                data: postData,                             // axios uses `data` instead of `body`
+                validateStatus: () => true,
+            });
+            if(!(response.status >= 200 && response.status <= 300)){
+                const data = (typeof response.data === "object" ? response.data : null) as any;
                 isError = true; //show error modal
                 if(Array.isArray(data?.errors)){ //validation errors from backend
                     errorMsg = data.errors.map((e: any) => e.message).join('; \n'); //combine all error messages
@@ -176,15 +179,16 @@
     }
 
     async function fetchIncomeCategories(){
-        const response = await fetch('http://localhost:4000/category?type=INCOME', {
-            method: 'GET',
-            credentials: 'include',
+        const response = await axios(`${ApiRoot}category?type=INCOME`, {
+            method: "GET",
+            withCredentials: true,
+            validateStatus: () => true,
         });
-        if(!response.ok){
+        if(!(response.status >= 200 && response.status <= 300)){
             console.error('Error fetching complete categories:', response.statusText);
             return;
         }
-        const data = await response.json();
+        const data = await response.data;
         if(!data || !Array.isArray(data.categories)){
             console.error('Invalid data format for complete categories', data);
             incomeCategories = [];
@@ -204,15 +208,16 @@
         }));
     }
     async function fetchExpenseCategories(){
-        const response = await fetch('http://localhost:4000/category?type=EXPENSE', {
-            method: 'GET',
-            credentials: 'include',
+        const response = await axios(`${ApiRoot}category?type=EXPENSE`, {
+            method: "GET",
+            withCredentials: true,
+            validateStatus: () => true,
         });
-        if(!response.ok){
+        if(!(response.status >= 200 && response.status <= 300)){
             console.error('Error fetching complete categories:', response.statusText);
             return;
         }
-        const data = await response.json();
+        const data = await response.data;
         if(!data || !Array.isArray(data.categories)){
             console.error('Invalid data format for complete categories', data);
             incomeCategories = [];
@@ -267,15 +272,16 @@
             type: typeUpdateCategory
         }
 
-        const response = await fetch(`http://localhost:4000/category/${updatingCategoryId}`,{
-            method: 'PATCH',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(updateData)
+        const response = await axios(`${ApiRoot}category/${updatingCategoryId}`,{
+            method: "PATCH",
+            withCredentials: true,
+            headers: { "Content-Type": "application/json" },
+            data: updateData,
+            validateStatus: () => true
         })
 
-        if(!response.ok){
-            const data = await response.json().catch(() => null);
+        if(!(response.status >= 200 && response.status <= 300)){
+            const data = (typeof response.data === "object" ? response.data : null) as any;
             isError = true; //show error modal
             if(Array.isArray(data?.errors)){ //validation errors from backend
                 errorMsg = data.errors.map((e: any) => e.message).join('; \n'); //combine all error messages
@@ -290,11 +296,12 @@
 
     async function deleteCategory(id: string){
         if(id === null || id === '') return;
-        const response = await fetch(`http://localhost:4000/category/${id}`,{
-            method: 'DELETE',
-            credentials: 'include'
+        const response = await axios(`${ApiRoot}category/${id}`,{
+            method: "DELETE",
+            withCredentials: true,
+            validateStatus: () => true
         })
-        if(!response.ok){
+        if(!(response.status >= 200 && response.status <= 300)){
             errorMsg = 'Failed to delete category';
             isError = true;
             return;

@@ -1,15 +1,18 @@
 import {writable} from 'svelte/store';
 import { ApiRoot,loadAll} from '$lib/utils/stores';
+import axios from 'axios';
 
 export const user = writable(null);
 
 export async function refreshUser() {
     try{
 		const url = `${ApiRoot}user/`;
-		const response = await fetch(url, {
-			credentials : 'include'
+		const response = await axios.get(url, {
+			withCredentials: true,
+			validateStatus: () => true,
 		});
-		user.set(response.ok? await response.json() : null);
+
+		user.set(response.status >= 200 && response.status <= 300 ? response.data : null);
 		await loadAll();
 	}catch{
 		user.set(null);
@@ -19,8 +22,12 @@ export async function refreshUser() {
 export async function logout() {
     try{
 		const api : string = `${ApiRoot}auth/logout`;
-		const response = await fetch(api, {credentials : 'include'});
-		if(response.ok){
+		const response = await axios(api, {
+			method: "GET",
+			withCredentials: true,
+			validateStatus: () => true,
+		});
+		if(response.status >= 200 && response.status <= 300){
             user.set(null);
 			console.log('Logout successfully.(from auth.ts)');
 		}else{

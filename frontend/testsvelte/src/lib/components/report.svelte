@@ -3,6 +3,9 @@
     import jsPDF from 'jspdf';
     import { onMount } from 'svelte';
     import autoTable from 'jspdf-autotable';
+	import axios from 'axios';
+	import { ApiRoot } from '$lib/utils/stores';
+	import { MinimizeOutline } from 'flowbite-svelte-icons';
 
     //For test only
     
@@ -96,23 +99,51 @@
     let error = $state('');
     let dataMonthly: reportMonthly | null = $state(null);
 
-    
+    //Transform API data into MonthlyReport type data.
+    function toMonthlyReport(raw: any): MonthlyReport {
+        return {
+            month: String(raw.month),
+            year: Number(raw.year),
+            totalIncome: Number(raw.totalIncome),
+            totalExpense: Number(raw.totalExpense),
+            netIncome: Number(raw.netIncome),
+            transactionCount: Number(raw.transactionCount),
+            dailyData: Array.isArray(raw.dailyData)? raw.dailyData.map((d: any) => ({
+                date: String(d.date),
+                income: Number(d.income),
+                expense: Number(d.expense),
+                count: Number(d.count)
+            })) : [],
+            categoryBreakdown: Array.isArray(raw.categoryBreakdown)? raw.categoryBreakdown.map((d: any) => ({
+                categoryId: String(d.categoryId),
+                categoryName: String(d.categoryName),
+                categoryColor: String(d.categoryColor),
+                categoryIcon: String(d.categoryIcon),
+                type: (d.type === "INCOME"? "INCOME" : "EXPENSE") as "INCOME" | "EXPENSE",
+                total: Number(d.total),
+                count: Number(d.count),
+                percentage: Number(d.percentage)
+            })) : []
+        };
+    }    
 
     //Load data from API
-    function loadData()
+    async function loadData()
     {   
         if(year === null && month === null) return;
         try{
-            // const res = await fetch(`http://localhost:4000/report/monthly?year=${year}&month=${month}`, {
-            //     method: 'GET',
-            //     credentials: 'include',
-            //     headers: {Accept: 'application/json'}
-            // });
+            const res = await axios(`${ApiRoot}report/monthly?year=${year}&month=${month}`, {
+                method: "GET",
+                withCredentials: true,
+                headers: {Accept: "application/json"},
+                validateStatus: () => true,
+            });
 
-            // if(!res.ok) throw new Error(`API ${res.status} ${res.statusText}`);
-            // dataMonthly = (await res.json()) as reportMonthly;
+            if(!(res.status >= 200 && res.status <= 300)) throw new Error(`API ${res.status} ${res.statusText}`);
+            const report: MonthlyReport = toMonthlyReport(res.data?.data);
+            dataMonthly = report;
             console.log("Load Data");
-            dataMonthly = monthlyReportMock;
+            // dataMonthly = monthlyReportMock;
         }catch(e: any){
             error = e?.message ?? 'Failed to load data.';
         }finally{

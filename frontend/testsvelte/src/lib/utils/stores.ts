@@ -1,4 +1,5 @@
 import { writable,get } from 'svelte/store';
+import axios from 'axios';
 
 // ---- stores ----
 // export const ApiRoot = 'http://localhost:4000/';
@@ -28,11 +29,25 @@ export type CompleteCategory = {
 };
 
 // ---- helpers ----
+const getPlainHeaders = (headers?: HeadersInit) : Record<string, string> => {
+	if(!headers) return {};
+	//if header is an instance of headers (web API).
+	if(headers instanceof Headers){
+		const obj: Record<string, string> = {};
+		headers.forEach((v,k) => (obj[k] = v));
+		return obj;
+	}
+
+	if(Array.isArray(headers)) Object.fromEntries(headers);
+	return headers as Record<string, string>;
+}
 const apiFetch = (path: string, init: RequestInit = {}) =>
-	fetch(`${ApiRoot}${path.startsWith('/') ? path.slice(1) : path}`, {
-		credentials: 'include',
-		headers: { Accept: 'application/json', ...(init.headers ?? {}) },
-		...init
+	axios(`${ApiRoot}${path.startsWith('/') ? path.slice(1) : path}`, {
+		withCredentials: true,
+		headers: { 'Content-Type': 'application/json', ...getPlainHeaders(init.headers) },
+		method: init.method ?? "GET",
+		data: init.body as any,
+		signal: init.signal as any,
 	});
 
 const asArray = (x: unknown): any[] => {
@@ -63,8 +78,11 @@ const toComplete = (c: any): CompleteCategory => ({
 async function fetchIncomeCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=INCOME');
-		if (!res.ok) throw new Error(await res.text());
-		const raw = await res.json();
+		if (!(res.status >= 200 && res.status <= 300)){
+			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+			throw new Error(msg);
+		}
+		const raw = await res.data;
 		const arr = asArray(raw)
 			.map(toComplete)
 			.map((c) => ({ ...c, type: 'INCOME' as const }));
@@ -78,8 +96,11 @@ async function fetchIncomeCategories(): Promise<void> {
 async function fetchExpenseCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=EXPENSE');
-		if (!res.ok) throw new Error(await res.text());
-		const raw = await res.json();
+		if (!(res.status >= 200 && res.status <= 300)){
+			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+			throw new Error(msg);
+		}
+		const raw = await res.data;
 		const arr = asArray(raw)
 			.map(toComplete)
 			.map((c) => ({ ...c, type: 'EXPENSE' as const }));

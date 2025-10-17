@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import { redirect } from '@sveltejs/kit';
 	import { ApiRoot } from '$lib/utils/stores';
+	import axios from 'axios';
 
 	let firstField: HTMLInputElement | null = null;
 	let overlay: HTMLDivElement | null = $state(null);
@@ -25,61 +26,57 @@
 	let confirmPassword: string = $state('');
 	let name: string = $state('');
 	let emailForgetPassword: string = $state('');
+
 	async function handleSubmitlogin() {
-		alert(`Email: ${email}\nPassword: ${password}`); //check bind value for dev
-		let postdata = {
-			email: email,
-			password: password
-		};
-		const response = await fetch(`${ApiRoot}auth/login`, {
-			//naja
-			method: 'POST',
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json' // <-- tell server this is JSON
-			},
-			body: JSON.stringify(postdata)
+		alert(`Email: ${email}\nPassword: ${password}`); // check bind value for dev
+
+		const postdata = { email, password };
+
+		const response = await axios(`${ApiRoot}auth/login`, {
+			method: "POST",
+			withCredentials: true, // like fetch { credentials: 'include' }
+			headers: { "Content-Type": "application/json" },
+			data: postdata,        // axios sends JSON for plain objects
+			validateStatus: () => true, // mimic fetch's response.ok check
 		});
-		console.log('Sending to API:', { email, password });
-		console.log(JSON.stringify(postdata));
-		if (response.ok) {
-			alert('Form submitted successfully!');
-			navigateToHome(); //naja
+		if (response.status >= 200 && response.status < 300) {
+			// alert("Form submitted successfully!");
 			login();
-			// Optionally clear form fields or redirect
+			navigateToHome();
 		} else {
-			alert('Error submitting form.');
-			const textBody: string = await response.text();
+			alert("Error submitting form.");
+			const textBody =
+			typeof response.data === "string"? response.data : JSON.stringify(response.data);
 			alert(textBody);
 		}
 	}
 
 	async function handleSubmitsignup() {
-		alert(`Email: ${email}\nPassword: ${password}`); //check bind value
-		let postdata = {
-			email: email,
-			password: password,
-			confirmPassword: confirmPassword,
-			name: name
+		// alert(`Email: ${email}\nPassword: ${password}`); // check bind value
+		const postdata = {
+			email,
+			password,
+			confirmPassword,
+			name,
 		};
-		const response = await fetch(`${ApiRoot}auth/register`, {
-			//naja
-			method: 'POST',
-			credentials: 'include',
-			headers: {
-				'Content-Type': 'application/json' // <-- tell server this is JSON
-			},
-			body: JSON.stringify(postdata)
+
+		const response = await axios(`${ApiRoot}auth/register`, {
+			method: "POST",
+			withCredentials: true, // like fetch { credentials: 'include' }
+			headers: { "Content-Type": "application/json" },
+			data: postdata,        // axios sends JSON for plain objects
+			validateStatus: () => true, // so we can mimic fetch's response.ok
 		});
-		if (response.ok) {
-			alert('Form submitted successfully!');
-			navigateToHome(); //naja
+
+		if (response.status >= 200 && response.status < 300) {
+			alert("Form submitted successfully!");
+			navigateToHome();
 			signup();
-			// Optionally clear form fields or redirect
 		} else {
-			const textBody: string = await response.text();
-			console.log('Response text:', textBody);
-			alert(textBody);
+			const textBody =
+			typeof response.data === "string"? response.data : JSON.stringify(response.data);
+			console.log("Response text:", textBody);
+			// alert(textBody);
 		}
 	}
 
@@ -113,17 +110,18 @@
 	}
 
 	async function sendVerificationCodeClick() {
-		//api
-		let postData = {
-			email: emailForgetPassword
-		};
-		const response = await fetch(`${ApiRoot}auth/password/forgot`, {
-			method: 'POST',
-			headers: { 'Content-type': 'application/json' },
-			body: JSON.stringify(postData)
+		// api
+		const postData = { email: emailForgetPassword };
+
+		const response = await axios(`${ApiRoot}auth/password/forgot`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			data: postData,              
+			validateStatus: () => true,  
 		});
-		if (response.ok) {
-			showMsg('Verification code sent to your email!', 'success');
+
+		if (response.status >= 200 && response.status < 300) {
+			showMsg("Verification code sent to your email!", "success");
 		}
 	}
 

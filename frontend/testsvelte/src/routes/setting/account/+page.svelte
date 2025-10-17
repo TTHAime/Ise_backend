@@ -5,6 +5,8 @@
     import {refreshUser, user} from '$lib/components/auth'
     import { ApiRoot } from "$lib/utils/stores";
     import userpic from "$lib/assets/userpic.png";//get user pic api later,default
+    import { ApiRoot } from "$lib/utils/stores";
+	import axios from "axios";
 
     //Upload Profile Image
     let imgFile: File | null = $state(null);
@@ -39,9 +41,14 @@
         if(file === null) return;
         const fd = new FormData();
         if(file) fd.append('image', file);
-        const response = await fetch(`${ApiRoot}user/profileImg`, {method: 'PATCH', credentials: 'include', body: fd});
+        const response = await axios(`${ApiRoot}user/profileImg`,{
+            method: "PATCH",
+            withCredentials: true,
+            data: fd,
+            validateStatus: () => true,
+        });
 
-        if(!response.ok)
+        if(!(response.status >= 200 && response.status <= 300))
         {
             showUploadError = true;
             return;
@@ -51,13 +58,13 @@
     }
 
     async function getUser(){ //Get user data from backend
-        const response = await fetch(`${ApiRoot}user`,{
-            method: 'GET',
-            credentials: 'include',
+        const response = await axios(`${ApiRoot}user`,{
+            method: "GET",
+            withCredentials: true,
         })
 
-        if(response.ok){
-            const resData = await response.json();
+        if(response.status >= 200 && response.status <= 300){
+            const resData = await response.data;
             if(resData){
                 userName = resData.user?.displayName;
                 email = resData.user?.email;
@@ -71,16 +78,17 @@
             name : userName
         }
 
-        const response = await fetch(`${ApiRoot}user/name`, {
-            method: 'PATCH',
-            credentials: 'include',
+        const response = await axios(`${ApiRoot}user/name`, {
+            method: "PATCH",
+            withCredentials: true,
             headers: {
-                "Content-Type" : "application/json",
+                'Content-Type' : "application/json",
             },
-            body: JSON.stringify(postData),
+            data: postData,
+            validateStatus: () => true
         });
 
-        if(response.ok) {
+        if(response.status >= 200 && response.status <= 300) {
             openUpdateSuccess = true;
             getUser();
             refreshUser();
@@ -152,12 +160,13 @@
 		let postData = {
 			email: email
 		};
-		const response = await fetch(`${ApiRoot}auth/password/forgot`, {
-			method: 'POST',
-			headers: { 'Content-type': 'application/json' },
-			body: JSON.stringify(postData)
+		const response = await axios(`${ApiRoot}auth/password/forgot`, {
+			method: "POST",
+			headers: { 'Content-Type': "application/json" },
+			data: postData,              
+			validateStatus: () => true,  
 		});
-		if(response.ok){
+		if(response.status >= 200 && response.status < 300){
             sendedResetPass = true;
         }else{
             resetErrorShow = true;
@@ -182,12 +191,6 @@
             <input type="text" name="username" id="Username" bind:value={userName} placeholder="Username" class="w-auto md:w-full mt-2 rounded-2xl border border-neutral-300 bg-transparent px-2 py-2 text-neutral-800 outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-200/60" />
         </div>
 
-        <!-- <div class="relativve w-auto mt-15 ml-10">
-            <button class="ml-5 rounded-xl justify-center items-center font-normal font-mono bg-green-400 w-35 h-10 text-white hover:cursor-pointer hover:bg-green-500" onclick={()=>{sendVerificationCodeClick()}} disabled={user === null}>
-                Reset Password
-            </button>
-        </div> -->
-
         <div class="relativve w-auto mt-13 ml-10">
             <button class="ml-5 rounded-xl justify-center items-center font-normal font-mono bg-green-400 w-25 h-10 text-white hover:cursor-pointer hover:bg-green-500" onclick={()=> {updateUserName()}} disabled={user === null}>
                 Update
@@ -206,12 +209,6 @@
                 Reset Password
             </button>
         </div>
-
-        <!-- <div class="relativve w-auto mt-13 ml-10">
-            <button class="ml-5 rounded-xl justify-center items-center font-normal font-mono bg-green-400 w-25 h-10 text-white hover:cursor-pointer hover:bg-green-500" onclick={()=> {updateUserName()}} disabled={user === null}>
-                Update
-            </button>
-        </div> -->
     </div>
 
 
