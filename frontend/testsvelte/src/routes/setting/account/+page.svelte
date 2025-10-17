@@ -161,7 +161,7 @@
 		};
 		const response = await axios(`${ApiRoot}auth/password/forgot`, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { 'Content-Type': "application/json" },
 			data: postData,              
 			validateStatus: () => true,  
 		});
