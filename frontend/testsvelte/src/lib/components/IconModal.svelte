@@ -2,6 +2,7 @@
     import { Modal , Tabs, Search, Button, TabItem } from 'flowbite-svelte';
     import Icon from '@iconify/svelte';
     import EmojiTab from '$lib/components/EmojiTab.svelte';
+    import axios from 'axios';
 
     // Props
     let {open = false, onPick = (value : string) => {}, onClose = () => {}} = $props();
@@ -59,8 +60,8 @@
             params.set('prefixes', iconFilter.join(','));   //filter by multiple prefixes
         }
 
-        const response = await fetch(`https://api.iconify.design/search?${params.toString()}`);     
-        const data = await response.json().catch(() => null);                                       //parse JSON response catch errors
+        const response = await axios.get(`https://api.iconify.design/search?${params.toString()}`,{ validateStatus: () => true }); // don't throw on non-2xx; mimic fetch behavior.   
+        const data = (typeof response.data === "object"? response.data : null) as any;              //parse JSON response catch errors
         const icons = (data?.icons ?? []).map((i: any) => {                                         //map results to prefix:name format
             if(typeof i ==='string') {                                                              //if string, split by ':'
                 const [prefix, name] = i.split(':');
