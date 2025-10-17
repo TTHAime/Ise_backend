@@ -77,8 +77,11 @@ const toComplete = (c: any): CompleteCategory => ({
 async function fetchIncomeCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=INCOME');
-		if (!res.ok) throw new Error(await res.text());
-		const raw = await res.json();
+		if (!(res.status >= 200 && res.status <= 300)){
+			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+			throw new Error(msg);
+		}
+		const raw = await res.data;
 		const arr = asArray(raw)
 			.map(toComplete)
 			.map((c) => ({ ...c, type: 'INCOME' as const }));
@@ -92,8 +95,11 @@ async function fetchIncomeCategories(): Promise<void> {
 async function fetchExpenseCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=EXPENSE');
-		if (!res.ok) throw new Error(await res.text());
-		const raw = await res.json();
+		if (!(res.status >= 200 && res.status <= 300)){
+			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+			throw new Error(msg);
+		}
+		const raw = await res.data;
 		const arr = asArray(raw)
 			.map(toComplete)
 			.map((c) => ({ ...c, type: 'EXPENSE' as const }));
