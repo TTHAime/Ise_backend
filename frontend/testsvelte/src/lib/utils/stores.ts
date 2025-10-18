@@ -1,4 +1,4 @@
-import { writable,get } from 'svelte/store';
+import { writable, get } from 'svelte/store';
 import axios from 'axios';
 
 // ---- stores ----
@@ -15,7 +15,6 @@ export const expenseSeries = writable<number[]>([]);
 export let Totalincome = writable(20);
 export let Totalexpense = writable(10);
 
-
 // ---- types ----
 export type CompleteCategory = {
 	id: string;
@@ -29,25 +28,25 @@ export type CompleteCategory = {
 };
 
 // ---- helpers ----
-const getPlainHeaders = (headers?: HeadersInit) : Record<string, string> => {
-	if(!headers) return {};
+const getPlainHeaders = (headers?: HeadersInit): Record<string, string> => {
+	if (!headers) return {};
 	//if header is an instance of headers (web API).
-	if(headers instanceof Headers){
+	if (headers instanceof Headers) {
 		const obj: Record<string, string> = {};
-		headers.forEach((v,k) => (obj[k] = v));
+		headers.forEach((v, k) => (obj[k] = v));
 		return obj;
 	}
 
-	if(Array.isArray(headers)) Object.fromEntries(headers);
+	if (Array.isArray(headers)) Object.fromEntries(headers);
 	return headers as Record<string, string>;
-}
+};
 const apiFetch = (path: string, init: RequestInit = {}) =>
 	axios(`${ApiRoot}${path.startsWith('/') ? path.slice(1) : path}`, {
 		withCredentials: true,
 		headers: { 'Content-Type': 'application/json', ...getPlainHeaders(init.headers) },
-		method: init.method ?? "GET",
+		method: init.method ?? 'GET',
 		data: init.body as any,
-		signal: init.signal as any,
+		signal: init.signal as any
 	});
 
 const asArray = (x: unknown): any[] => {
@@ -78,8 +77,8 @@ const toComplete = (c: any): CompleteCategory => ({
 async function fetchIncomeCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=INCOME');
-		if (!(res.status >= 200 && res.status <= 300)){
-			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+		if (!(res.status >= 200 && res.status <= 300)) {
+			const msg = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
 			throw new Error(msg);
 		}
 		const raw = await res.data;
@@ -96,8 +95,8 @@ async function fetchIncomeCategories(): Promise<void> {
 async function fetchExpenseCategories(): Promise<void> {
 	try {
 		const res = await apiFetch('category?type=EXPENSE');
-		if (!(res.status >= 200 && res.status <= 300)){
-			const msg = typeof res.data === "string"? res.data : JSON.stringify(res.data);
+		if (!(res.status >= 200 && res.status <= 300)) {
+			const msg = typeof res.data === 'string' ? res.data : JSON.stringify(res.data);
 			throw new Error(msg);
 		}
 		const raw = await res.data;
@@ -122,6 +121,7 @@ const monthRange = (d = new Date()) => {
 	return { start, end };
 };
 
+
 export async function loadData(): Promise<void>;
 export async function loadData(when: Date | string): Promise<void>;
 export async function loadData(from: Date | string, to: Date | string): Promise<void>;
@@ -141,7 +141,7 @@ export async function loadData(a?: Date | string, b?: Date | string) {
 		let to = toDate(b);
 		// normalize
 		from = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-		to   = new Date(to.getFullYear(),   to.getMonth(),   to.getDate());
+		to = new Date(to.getFullYear(), to.getMonth(), to.getDate());
 		// swap if needed
 		if (to < from) [from, to] = [to, from];
 		start = from;
@@ -154,29 +154,28 @@ export async function loadData(a?: Date | string, b?: Date | string) {
 		end = r.end;
 	}
 
-	const paramsBase = new URLSearchParams({
+	const params = {
 		dateFrom: iso(start),
 		dateTo: iso(end)
-	});
-
-	const makeUrl = (type: 'INCOME' | 'EXPENSE') => {
-		const qs = new URLSearchParams(paramsBase);
-		qs.set('type', type);
-		return `${ApiRoot}transaction?${qs.toString()}`;
 	};
+	console.log('Loading data from', params.dateFrom, 'to', params.dateTo);
 
 	try {
 		const [incRes, expRes] = await Promise.all([
-			fetch(makeUrl('INCOME'), { credentials: 'include', headers: { Accept: 'application/json' } }),
-			fetch(makeUrl('EXPENSE'), { credentials: 'include', headers: { Accept: 'application/json' } })
+			axios.get(`${ApiRoot}transaction`, {
+				params: { ...params, type: 'INCOME' },
+				withCredentials: true,
+				headers: { Accept: 'application/json' }
+			}),
+			axios.get(`${ApiRoot}transaction`, {
+				params: { ...params, type: 'EXPENSE' },
+				withCredentials: true,
+				headers: { Accept: 'application/json' }
+			})
 		]);
 
-		if (!incRes.ok) throw new Error(`INCOME ${incRes.status}: ${await incRes.text()}`);
-		if (!expRes.ok) throw new Error(`EXPENSE ${expRes.status}: ${await expRes.text()}`);
-
-		const [incRaw, expRaw] = await Promise.all([incRes.json(), expRes.json()]);
-		const income = asArray(incRaw);
-		const expense = asArray(expRaw);
+		const income = asArray(incRes.data);
+		const expense = asArray(expRes.data);
 
 		incomeSeries.set(income);
 		expenseSeries.set(expense);
@@ -190,29 +189,29 @@ export async function loadData(a?: Date | string, b?: Date | string) {
 
 async function loadDaashboard() {
 	try {
-		const res = await fetch(`${ApiRoot}dashboard`, {
+		let data: any = {};
+		const res = await axios(`${ApiRoot}dashboard`, {
 			method: 'GET',
-			credentials: 'include',
+			withCredentials: true,
 			headers: { Accept: 'application/json' }
+		}).then((res) => {
+			data = res.data;
+			
+		}).catch((error) => {
+			console.error('Error fetching dashboard:', error);
 		});
 
-		if (!res.ok) {
-			const errText = await res.text();
-			throw new Error(`HTTP ${res.status} ${res.statusText}: ${errText}`);
-		}
-
-		const data = await res.json();
 		Dashboard.set(data);
-        Totalexpense.set(Number(data.data.totalExpense))
-        Totalincome.set(Number(data.data.totalIncome))
+		Totalexpense.set(Number(data.data.totalExpense));
+		Totalincome.set(Number(data.data.totalIncome));
 	} catch (err) {
 		console.error('Failed to load dashboard:', err);
 		throw err;
 	}
 }
 
-export function loadAll(){
-    loadDaashboard();
-    loadData();
-    loadallFetchCategories();
+export function loadAll() {
+	loadDaashboard();
+	loadData();
+	loadallFetchCategories();
 }

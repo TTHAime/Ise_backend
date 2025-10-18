@@ -1,10 +1,11 @@
 <script lang="ts">
-	import ChartCard from '$lib/components/Compare-line.svelte';
+	import CompareLine from '$lib/components/Compare-line.svelte';
 	import type { ApexAxisChartSeries } from 'apexcharts';
 	import type { PeriodKey, Granularity } from '$lib/utils/Charttimehelpers';
 	import { buildSeriesFromTransactions } from '$lib/utils/Chartseries';
 	import type { Tx } from '$lib/utils/Chartseries';
 	import { loadData, expenseSeries, incomeSeries } from '$lib/utils/stores';
+	import Report from '$lib/components/report.svelte';
 	import {
 		makeLast7Days,
 		makeLast30Days,
@@ -13,108 +14,189 @@
 		validateRange
 	} from '$lib/utils/Charttimehelpers';
 
-	let loading = true;
-	let period: PeriodKey = 'Last 7 days';
-	let granularity: Granularity | undefined = 'daily';
-	let series: ApexAxisChartSeries = [];
-	let categories: string[] = [];
+	let loading = $state(true);
+	let period: PeriodKey = $state('Last 7 days');
+	let granularity = $state<Granularity>('daily');
+	let series: ApexAxisChartSeries = $state([]);
+	let categories: string[] = $state([]);
 
-	let fromStr = '';
-	let toStr = '';
+	let fromStr = $state('');
+	let toStr = $state('');
 
-	// inside a Svelte component (so $store works)
-	async function getLineData(len?: number): Promise<Tx[]> {
-		await loadData('2025-08-01', '2025-10-08');
-		const src = $incomeSeries ?? [];
-		const srcexp = $expenseSeries ?? [];
-		const take = typeof len === 'number' ? Math.min(len, src.length) : src.length;
-		const takexp = typeof len === 'number' ? Math.min(len, srcexp.length) : srcexp.length;
+	let totalIncome = $state(0);
+	let totalExpenses = $state(0);
 
-		const txs: Tx[] = src.slice(0, take).map((r) => ({
-			amount: Number(r.amount) || 0,
-			date: r.date, // keep API date; or new Date(r.date).toISOString()
-			type: 'INCOME'
-		}));
-		const txsexp: Tx[] = srcexp.slice(0, takexp).map((r) => ({
-			amount: Number(r.amount) || 0,
-			date: r.date, // keep API date; or new Date(r.date).toISOString()
-			type: 'EXPENSE'
-		}));
-
-		return txs.concat(txsexp);
+	let reportRef;
+	let selectedMonth = 9;
+	let selectedYear = 2025;
+	function downloadPDF() {
+		reportRef?.showPreviewModal();
 	}
 
-	function demoSeries(len: number) {
-		const income = Array.from({ length: len }, (_, i) => 1200 + i * 22 + (i % 3) * 40);
-		const expense = Array.from({ length: len }, (_, i) => 800 + i * 17 + (i % 4) * 30);
-		return [
-			{ name: 'Income', data: income, color: '#16a34a' },
-			{ name: 'Expenses', data: expense, color: '#dc2626' }
-		] as ApexAxisChartSeries;
+	type RangeInput = '7d' | '30d' | '90d' | { from: string | Date; to: string | Date };
+
+	// Helper functions
+	const startOfDayLocal = (d: Date) => {
+		const x = new Date(d);
+		x.setHours(0, 0, 0, 0);
+		return x;
+	};
+
+	const endOfDayLocal = (d: Date) => {
+		const x = new Date(d);
+		x.setHours(23, 59, 59, 999);
+		return x;
+	};
+
+	const addDays = (d: Date, n: number) => {
+		const x = new Date(d);
+		x.setDate(x.getDate() + n);
+		return x;
+	};
+
+	// Calculate totals from series data
+	const sumData = (arr: any[]): number => {
+		if (!Array.isArray(arr)) return 0;
+		return arr.reduce((a, v) => {
+			const num = typeof v === 'number' ? v : (v?.y ?? v?.value ?? 0);
+			return a + (isNaN(num) ? 0 : num);
+		}, 0);
+	};
+
+	const calculateTotals = (seriesData: ApexAxisChartSeries) => {
+		if (!Array.isArray(seriesData)) {
+			totalIncome = 0;
+			totalExpenses = 0;
+			return;
+		}
+
+		const incSeries = seriesData.find((s) => s.name === 'Income');
+		const expSeries = seriesData.find((s) => s.name === 'Expenses');
+
+		totalIncome = incSeries && Array.isArray(incSeries.data) ? sumData(incSeries.data) : 0;
+		totalExpenses = expSeries && Array.isArray(expSeries.data) ? sumData(expSeries.data) : 0;
+	};
+
+	// Update totals whenever series changes
+	$effect(() => {
+		calculateTotals(series);
+	});
+
+	function resolveRange(input?: RangeInput): { from: Date; to: Date } {
+		if (!input) input = '7d';
+
+		const today = new Date();
+		const to = endOfDayLocal(today);
+
+		if (typeof input === 'string') {
+			if (input === '7d') return { from: startOfDayLocal(addDays(today, -6)), to };
+			if (input === '30d') return { from: startOfDayLocal(addDays(today, -29)), to };
+			if (input === '90d') return { from: startOfDayLocal(addDays(today, -89)), to };
+			throw new Error('Unknown range string. Use "7d" | "30d" | "90d".');
+		}
+
+		const from = startOfDayLocal(new Date(input.from));
+		const toC = endOfDayLocal(new Date(input.to));
+		if (Number.isNaN(from.getTime()) || Number.isNaN(toC.getTime()))
+			throw new Error('Invalid custom dates. Use YYYY-MM-DD or Date objects.');
+		return from <= toC ? { from, to: toC } : { from: toC, to: from };
+	}
+
+	async function getLineData(range?: RangeInput): Promise<Tx[]> {
+		const { from, to } = resolveRange(range);
+		await loadData(from, to);
+
+		const src = $incomeSeries ?? [];
+		const srcexp = $expenseSeries ?? [];
+
+		const merged: Tx[] = [
+			...src.map((r) => ({ amount: Number(r.amount) || 0, date: r.date, type: 'INCOME' as const })),
+			...srcexp.map((r) => ({
+				amount: Number(r.amount) || 0,
+				date: r.date,
+				type: 'EXPENSE' as const
+			}))
+		].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+		return merged;
 	}
 
 	async function fetchAnalytics(p: PeriodKey) {
 		loading = true;
 		period = p;
 
-		if (p === 'Last 7 days') {
-			const cats = makeLast7Days();
-			categories = cats.labels;
-			granularity = 'daily';
-			const txData = await getLineData();
-			series = buildSeriesFromTransactions(txData, { kind: '7d' }).series;
-			console.log('yay', series);
-		} else if (p === 'Last 30 days') {
-			const cats = makeLast30Days('daily');
-			categories = cats.labels;
-			granularity = 'daily';
-			const txData = await getLineData();
-			series = buildSeriesFromTransactions(txData, { kind: '30d' }).series;
-		} else if (p === 'Last 90 days') {
-			const cats = makeLast90DaysWeeklyByMonth();
-			categories = cats.labels;
-			granularity = 'weekly';
-			const txData = await getLineData();
-			series = buildSeriesFromTransactions(txData, { kind: '90d-weeklyByMonth' }).series;
-		} else {
+		try {
+			if (p === 'Last 7 days') {
+				const cats = makeLast7Days();
+				categories = cats.labels;
+				granularity = 'daily';
+				const txData = await getLineData('7d');
+				const result = buildSeriesFromTransactions(txData, { kind: '7d' });
+				series = result.series;
+				categories = result.categories;
+			} else if (p === 'Last 30 days') {
+				const cats = makeLast30Days('daily');
+				categories = cats.labels;
+				granularity = 'daily';
+				const txData = await getLineData('30d');
+				const result = buildSeriesFromTransactions(txData, { kind: '30d' });
+				series = result.series;
+				categories = result.categories;
+			} else if (p === 'Last 90 days') {
+				const cats = makeLast90DaysWeeklyByMonth();
+				categories = cats.labels;
+				granularity = 'weekly';
+				const txData = await getLineData('90d');
+				const result = buildSeriesFromTransactions(txData, { kind: '90d-weeklyByMonth' });
+				series = result.series;
+				categories = result.categories;
+			}
+		} catch (error) {
+			console.error('Failed to fetch analytics:', error);
+			series = [];
+			categories = [];
+		} finally {
 			loading = false;
-			return;
 		}
-
-		loading = false;
 	}
 
-	async function fetchAnalyticsRange(fromISO: string, toISO: string, g?: Granularity) {
-		const valid = validateRange({
-			from: new Date(fromISO || Date.now()),
-			to: new Date(toISO || Date.now())
-		});
-		fromStr = valid.from.toISOString().slice(0, 10);
-		toStr = valid.to.toISOString().slice(0, 10);
-        console.log(fromStr)
-		loading = true;
-		period = 'Custom range';
-		granularity = 'daily';
+	async function fetchAnalyticsRange(fromISO: string, toISO: string) {
+		try {
+			const valid = validateRange({
+				from: new Date(fromISO || Date.now()),
+				to: new Date(toISO || Date.now())
+			});
 
-		const cats = makeRangeCategories(valid, g);
-		const txData = await getLineData();
-		let tmi = buildSeriesFromTransactions(txData, {
-            kind: 'custom',
-			from: fromStr,
-			to: toStr,
-			granularity: 'weeklyByMonth'
-		});
-        series = tmi.series;
-        console.log('cars',series)
-        categories = cats.labels;
-		loading = false;
+			fromStr = valid.from.toISOString().slice(0, 10);
+			toStr = valid.to.toISOString().slice(0, 10);
+
+			loading = true;
+			period = 'Custom range';
+
+			const txData = await getLineData({ from: valid.from, to: valid.to });
+			const result = buildSeriesFromTransactions(txData, {
+				kind: 'custom',
+				from: fromStr,
+				to: toStr,
+				granularity: 'auto' // Let it auto-detect
+			});
+
+			series = result.series;
+			categories = result.categories;
+		} catch (error) {
+			console.error('Failed to fetch custom range:', error);
+			series = [];
+			categories = [];
+		} finally {
+			loading = false;
+		}
 	}
 
-	// initial
+	// Initial load
 	fetchAnalytics('Last 7 days');
 </script>
 
-<!-- Controls (centered & vertically aligned) -->
+<!-- Controls -->
 <div class="mb-4 flex flex-col items-center justify-center gap-3 py-5 md:flex-row md:gap-5">
 	<!-- Segmented presets -->
 	<div
@@ -123,29 +205,41 @@
 		<button
 			class="h-8 rounded-lg px-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
 			class:font-semibold={period === 'Last 7 days'}
-			on:click={() => fetchAnalytics('Last 7 days')}>7d</button
+			class:bg-gray-100={period === 'Last 7 days'}
+			class:dark:bg-gray-700={period === 'Last 7 days'}
+			onclick={() => fetchAnalytics('Last 7 days')}
 		>
+			7d
+		</button>
 
 		<div class="mx-1 h-5 w-px bg-gray-200 dark:bg-gray-700"></div>
 
 		<button
 			class="h-8 rounded-lg px-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
 			class:font-semibold={period === 'Last 30 days'}
-			on:click={() => fetchAnalytics('Last 30 days')}>30d · Daily</button
+			class:bg-gray-100={period === 'Last 30 days'}
+			class:dark:bg-gray-700={period === 'Last 30 days'}
+			onclick={() => fetchAnalytics('Last 30 days')}
 		>
+			30d · Daily
+		</button>
 
 		<div class="mx-1 h-5 w-px bg-gray-200 dark:bg-gray-700"></div>
 
 		<button
 			class="h-8 rounded-lg px-3 text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
-			class:font-semibold={period === 'Last 90 days' && granularity === 'weekly'}
-			on:click={() => fetchAnalytics('Last 90 days')}>90d · Quarterly</button
+			class:font-semibold={period === 'Last 90 days'}
+			class:bg-gray-100={period === 'Last 90 days'}
+			class:dark:bg-gray-700={period === 'Last 90 days'}
+			onclick={() => fetchAnalytics('Last 90 days')}
 		>
+			90d · Quarterly
+		</button>
 	</div>
 
 	<h1 class="mx-1 self-center text-lg font-bold text-gray-600 dark:text-gray-300">OR</h1>
 
-	<!-- Custom range (inputs + Apply) -->
+	<!-- Custom range -->
 	<div class="flex h-10 items-center gap-2">
 		<div class="flex items-center gap-2">
 			<label for="from-date" class="text-xs text-gray-500 dark:text-gray-400">From</label>
@@ -170,20 +264,21 @@
 		</div>
 
 		<button
-			class="h-10 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white hover:bg-black/85 dark:bg-white dark:text-gray-900"
-			on:click={() =>
-				fetchAnalyticsRange(
-					fromStr || toStr || new Date().toISOString().slice(0, 10),
-					toStr || fromStr || new Date().toISOString().slice(0, 10)
-				)}
+			class="h-10 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white hover:bg-black/85 disabled:opacity-50 dark:bg-white dark:text-gray-900"
+			disabled={!fromStr || !toStr}
+			onclick={() => fetchAnalyticsRange(fromStr, toStr)}
 		>
 			Apply
 		</button>
 	</div>
 </div>
-<div class="px-20">
-	<ChartCard
+
+<!-- Chart -->
+<div class="justify-center px-4 md:px-20">
+	<CompareLine
 		{series}
+		{totalExpenses}
+		{totalIncome}
 		{categories}
 		initialPeriod={period}
 		currency="฿"
@@ -194,6 +289,44 @@
 			else if (p === 'Last 90 days') fetchAnalytics('Last 90 days');
 			else period = 'Custom range';
 		}}
-		onLoaded={() => {}}
+		onLoaded={() => console.log('Chart loaded')}
 	/>
+	<section class="space-y-4">
+		<!-- Mount the component -->
+		<Report bind:this={reportRef} bind:month={selectedMonth} bind:year={selectedYear} />
+
+		<!-- Trigger PDF from parent -->
+		<div class="flex justify-center pd-4 space-x-4 py-5">
+			<select bind:value={selectedMonth}>
+				{#each Array(12) as _, i}
+					<option value={i + 1}>{i + 1}</option>
+				{/each}
+			</select>
+
+			<select bind:value={selectedYear}>
+				<option value={2024}>2024</option>
+				<option value={2025}>2025</option>
+			</select>
+			<button class="button" onclick={downloadPDF}>
+				<svg
+					stroke-linejoin="round"
+					stroke-linecap="round"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="1.5"
+					viewBox="0 0 24 24"
+					height="40"
+					width="40"
+					class="button__icon"
+					xmlns="http://www.w3.org/2000/svg"
+				>
+					<path fill="none" d="M0 0h24v24H0z" stroke="none"></path>
+					<path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"></path>
+					<path d="M7 11l5 5l5 -5"></path>
+					<path d="M12 4l0 12"></path>
+				</svg>
+				<span class="button__text">Get your Report</span>
+			</button>
+		</div>
+	</section>
 </div>

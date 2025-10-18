@@ -10,7 +10,7 @@ export type AxisSeries = { name: string; data: number[]; color?: string }[];
 export type PresetOption =
 	| { kind: '7d' } // last 7 days (daily)
 	| { kind: '30d' } // last 30 days (daily)
-	| { kind: '90d-weeklyByMonth' }; // last 90 days as 3 months × 4 “weeks” per month (≈12 buckets)
+	| { kind: '90d-weeklyByMonth' }; // last 90 days as 3 months × 4 "weeks" per month (≈12 buckets)
 
 export type CustomOption = {
 	kind: 'custom';
@@ -18,7 +18,8 @@ export type CustomOption = {
 	to: string | Date;
 	// daily = per day, monthly = per calendar month,
 	// weeklyByMonth = W1..W4 inside each month across the range
-	granularity: 'daily' | 'monthly' | 'weeklyByMonth';
+	// auto = let the system pick based on date span (NEW!)
+	granularity?: 'daily' | 'monthly' | 'weeklyByMonth' | 'auto';
 };
 
 export type BuildInput = PresetOption | CustomOption;
@@ -39,6 +40,11 @@ const fmtDayMon = new Intl.DateTimeFormat('en-US', {
 	timeZone: TZ
 });
 const fmtMonth = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: TZ });
+const fmtMonthYr = new Intl.DateTimeFormat('en-US', {
+	month: 'short',
+	year: '2-digit',
+	timeZone: TZ
+});
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => {
@@ -48,6 +54,8 @@ const addDays = (d: Date, n: number) => {
 };
 const lastDayOfMonth = (y: number, m: number) => new Date(y, m + 1, 0);
 const normTime = (d: string | Date) => startOfDay(new Date(d)).getTime();
+const daysBetween = (a: Date, b: Date) =>
+	Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / 86400000);
 
 const today = () => startOfDay(new Date());
 const clampToToday = (d: Date) => (d > today() ? today() : d);
@@ -58,7 +66,6 @@ function buildDailyBuckets(from: Date, to: Date): Bucket[] {
 		e = startOfDay(to);
 	const out: Bucket[] = [];
 	for (let d = new Date(s); d <= e; d = addDays(d, 1)) {
-		// label: Mon, Tue for short 7d; else "Oct 8"
 		out.push({ start: d, end: d, label: fmtDayMon.format(d) });
 	}
 	return out;
@@ -68,12 +75,15 @@ function buildMonthlyBuckets(from: Date, to: Date): Bucket[] {
 	const out: Bucket[] = [];
 	let cur = new Date(from.getFullYear(), from.getMonth(), 1);
 	const end = new Date(to.getFullYear(), to.getMonth(), 1);
+	const crossesYear = from.getFullYear() !== to.getFullYear();
+	
 	while (cur <= end) {
 		const y = cur.getFullYear(),
 			m = cur.getMonth();
 		const s = new Date(y, m, 1);
 		const e = lastDayOfMonth(y, m);
-		out.push({ start: s, end: e, label: fmtMonth.format(s) });
+		const label = crossesYear ? fmtMonthYr.format(s) : fmtMonth.format(s);
+		out.push({ start: s, end: e, label });
 		cur = new Date(y, m + 1, 1);
 	}
 	return out;
@@ -100,9 +110,8 @@ function splitMonthIntoFourWeeks(monthStart: Date): Bucket[] {
 
 // 90d as 3 months × 4 buckets each, clipped to the 90d window (≈12 buckets)
 function build90dWeeklyByMonthBuckets(ref = new Date()): Bucket[] {
-	const to = today(); // end = today (local)
+	const to = today();
 	const from = addDays(to, -89);
-	// Collect months intersecting window
 	const months: Date[] = [];
 	let cur = new Date(from.getFullYear(), from.getMonth(), 1);
 	const last = new Date(to.getFullYear(), to.getMonth(), 1);
@@ -150,12 +159,23 @@ export function buildSeriesFromTransactions(txs: Tx[], input: BuildInput): Build
 	} else {
 		// custom
 		const from = startOfDay(new Date(input.from));
-		const to = clampToToday(startOfDay(new Date(input.to)));
-		if (to < from) to.setTime(from.getTime()); // enforce B ≥ A
+		let to = clampToToday(startOfDay(new Date(input.to)));
+		if (to < from) to = new Date(from.getTime()); // enforce to >= from
 
-		if (input.granularity === 'daily') {
+		// Auto-detect granularity based on span (like the first file does)
+		const span = daysBetween(from, to) + 1;
+		let granularity = input.granularity || 'auto';
+		
+		if (granularity === 'auto') {
+			// Same logic as makeRangeCategories in first file
+			if (span <= 31) granularity = 'daily';
+			else if (span <= 120) granularity = 'weeklyByMonth';
+			else granularity = 'monthly';
+		}
+
+		if (granularity === 'daily') {
 			buckets = buildDailyBuckets(from, to);
-		} else if (input.granularity === 'monthly') {
+		} else if (granularity === 'monthly') {
 			buckets = buildMonthlyBuckets(from, to);
 		} else {
 			// weeklyByMonth across the covered months
@@ -179,7 +199,7 @@ export function buildSeriesFromTransactions(txs: Tx[], input: BuildInput): Build
 		{ name: 'Income', data: income, color: '#16a34a' },
 		{ name: 'Expenses', data: expense, color: '#dc2626' }
 	];
-    console.log('inchart',series)
+	console.log('inchart', series);
 
 	const categories = buckets.map((b) => b.label);
 	return { series, categories };

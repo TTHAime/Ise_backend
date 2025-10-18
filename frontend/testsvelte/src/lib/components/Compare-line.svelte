@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { ApexOptions, ApexAxisChartSeries } from 'apexcharts';
 	import { Chart } from '@flowbite-svelte-plugins/chart';
-	import { Card, A, Button, Dropdown, DropdownItem, Popover } from 'flowbite-svelte';
+	import { Card, A, Popover } from 'flowbite-svelte';
 	import { InfoCircleSolid, ChevronRightOutline } from 'flowbite-svelte-icons';
 	import { onMount } from 'svelte';
 
@@ -11,23 +11,14 @@
 	export let initialPeriod: string = 'Last 7 days';
 	export let currency: string = '฿';
 	export let loading: boolean = false;
+	export let totalIncome: number = 0;
+	export let totalExpenses: number = 0;
 
 	// Typed callback props (Svelte 5 style)
 	export let onChangePeriod: ((period: string) => void) | undefined;
 	export let onLoaded: (() => void) | undefined;
 
 	let period = initialPeriod;
-
-	const sumData = (arr: any[]) =>
-		arr.reduce((a, v) => a + (typeof v === 'number' ? v : (v?.y ?? v?.value ?? 0)), 0);
-
-	const findTotal = (name: string) => {
-		const s = series.find((s) => s.name?.toLowerCase() === name.toLowerCase());
-		return s ? sumData((s as any).data ?? []) : 0;
-	};
-
-	$: totalIncome = findTotal('Income');
-	$: totalExpenses = findTotal('Expenses');
 
 	// Only render chart when data exists
 	$: hasData =
@@ -37,29 +28,61 @@
 		(series[0] as any).data.length > 0 &&
 		!loading;
 
-	const longestLen = () => Math.max(...series.map((s: any) => (s?.data?.length ?? 0)), 0);
+	const longestLen = (): number => {
+		if (!Array.isArray(series)) return 0;
+		return Math.max(...series.map((s: any) => (s?.data?.length ?? 0)), 0);
+	};
+	
 	const fallbackCats = (n: number) => Array.from({ length: n }, (_, i) => `#${i + 1}`);
 
 	$: options = hasData
 		? ({
-				chart: { height: 220, width: '100%', type: 'line', fontFamily: 'Inter, sans-serif', dropShadow: { enabled: false }, toolbar: { show: false } },
+				chart: { 
+					height: 220, 
+					width: '100%', 
+					type: 'line', 
+					fontFamily: 'Inter, sans-serif', 
+					dropShadow: { enabled: false }, 
+					toolbar: { show: false } 
+				},
 				tooltip: { enabled: true, x: { show: false } },
 				dataLabels: { enabled: false },
 				stroke: { width: 4, curve: 'smooth' },
-				grid: { show: true, strokeDashArray: 4, padding: { left: 12, right: 12, top: -26 } },
+				grid: { 
+					show: true, 
+					strokeDashArray: 4, 
+					padding: { left: 12, right: 12, top: -26 } 
+				},
 				series,
 				legend: { show: false },
 				xaxis: {
 					categories: categories ?? fallbackCats(longestLen()),
-					labels: { show: true, style: { fontFamily: 'Inter, sans-serif', cssClass: 'text-xs font-normal fill-gray-500 dark:fill-gray-400' } },
+					labels: { 
+						show: true, 
+						style: { 
+							fontFamily: 'Inter, sans-serif', 
+							cssClass: 'text-xs font-normal fill-gray-500 dark:fill-gray-400' 
+						} 
+					},
 					axisBorder: { show: false },
 					axisTicks: { show: false }
 				},
-				yaxis: { show: true, labels: { style: { cssClass: 'text-xs font-normal fill-gray-500 dark:text-gray-400' } } }
+				yaxis: { 
+					show: true, 
+					labels: { 
+						style: { 
+							cssClass: 'text-xs font-normal fill-gray-500 dark:text-gray-400' 
+						} 
+					} 
+				}
 			} satisfies ApexOptions)
 		: undefined;
 
-	const fmt = (n: number) => `${currency}${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+	// Safe formatter with validation
+	const fmt = (n: number | undefined): string => {
+		const num = typeof n === 'number' && !isNaN(n) ? n : 0;
+		return `${currency}${num.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+	};
 
 	function pickPeriod(p: string) {
 		period = p;
@@ -67,8 +90,18 @@
 	}
 
 	let loadedEmitted = false;
-	onMount(() => { if (hasData && !loadedEmitted) { loadedEmitted = true; onLoaded?.(); } });
-	$: if (hasData && !loadedEmitted) { loadedEmitted = true; onLoaded?.(); }
+	
+	onMount(() => { 
+		if (hasData && !loadedEmitted) { 
+			loadedEmitted = true; 
+			onLoaded?.(); 
+		} 
+	});
+	
+	$: if (hasData && !loadedEmitted) { 
+		loadedEmitted = true; 
+		onLoaded?.(); 
+	}
 </script>
 
 <Card class="p-4 md:p-6" size="xl">
@@ -77,31 +110,53 @@
 			<div>
 				<h5 class="mb-2 inline-flex items-center font-normal leading-none text-gray-500 dark:text-gray-400">
 					Income
-					<InfoCircleSolid id="i1" class="ms-1 h-3 w-3 cursor-pointer text-gray-400 hover:text-gray-900 dark:hover:text-white" />
-					<Popover triggeredBy="#i1" class="shadow-xs z-10 w-72 rounded-lg border border-gray-200 bg-white text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400">
+					<InfoCircleSolid 
+						id="i1" 
+						class="ms-1 h-3 w-3 cursor-pointer text-gray-400 hover:text-gray-900 dark:hover:text-white" 
+					/>
+					<Popover 
+						triggeredBy="#i1" 
+						class="shadow-xs z-10 w-72 rounded-lg border border-gray-200 bg-white text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400"
+					>
 						<div class="space-y-2 p-3">
 							<h3 class="font-semibold text-gray-900 dark:text-white">Income Overview</h3>
 							<p>Shows how much you earned during the selected period.</p>
-							<A href="/">Read more <ChevronRightOutline class="ms-1.5 h-2 w-2" /></A>
+							<A href="/">
+								Read more 
+								<ChevronRightOutline class="ms-1.5 h-2 w-2" />
+							</A>
 						</div>
 					</Popover>
 				</h5>
-				<p class="text-2xl font-bold leading-none text-gray-900 dark:text-white">{fmt(totalIncome)}</p>
+				<p class="text-2xl font-bold leading-none text-gray-900 dark:text-white">
+					{fmt(totalIncome)}
+				</p>
 			</div>
 
 			<div>
 				<h5 class="mb-2 inline-flex items-center font-normal leading-none text-gray-500 dark:text-gray-400">
 					Expenses
-					<InfoCircleSolid id="i2" class="ms-1 h-3 w-3 cursor-pointer text-gray-400 hover:text-gray-900 dark:hover:text-white" />
-					<Popover triggeredBy="#i2" class="shadow-xs z-10 w-72 rounded-lg border border-gray-200 bg-white text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400">
+					<InfoCircleSolid 
+						id="i2" 
+						class="ms-1 h-3 w-3 cursor-pointer text-gray-400 hover:text-gray-900 dark:hover:text-white" 
+					/>
+					<Popover 
+						triggeredBy="#i2" 
+						class="shadow-xs z-10 w-72 rounded-lg border border-gray-200 bg-white text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400"
+					>
 						<div class="space-y-2 p-3">
 							<h3 class="font-semibold text-gray-900 dark:text-white">Expense Overview</h3>
 							<p>Shows how much you spent during the selected period.</p>
-							<A href="/">Read more <ChevronRightOutline class="ms-1.5 h-2 w-2" /></A>
+							<A href="/">
+								Read more 
+								<ChevronRightOutline class="ms-1.5 h-2 w-2" />
+							</A>
 						</div>
 					</Popover>
 				</h5>
-				<p class="text-2xl font-bold leading-none text-gray-900 dark:text-white">{fmt(totalExpenses)}</p>
+				<p class="text-2xl font-bold leading-none text-gray-900 dark:text-white">
+					{fmt(totalExpenses)}
+				</p>
 			</div>
 		</div>
 	</div>
