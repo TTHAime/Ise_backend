@@ -5,6 +5,7 @@
 	import { buildSeriesFromTransactions } from '$lib/utils/Chartseries';
 	import type { Tx } from '$lib/utils/Chartseries';
 	import { loadData, expenseSeries, incomeSeries } from '$lib/utils/stores';
+	import { user } from '$lib/components/auth';
 	import Report from '$lib/components/report.svelte';
 	import {
 		makeLast7Days,
@@ -32,6 +33,13 @@
 	function downloadPDF() {
 		reportRef?.showPreviewModal();
 	}
+
+	const created = new Date($user.user.createdAt);
+	const now = new Date();
+	const createdYear = created.getFullYear();
+	const createdMonth = created.getMonth() + 1;
+	const currentYear = now.getFullYear();
+	const currentMonth = now.getMonth() + 1;
 
 	type RangeInput = '7d' | '30d' | '90d' | { from: string | Date; to: string | Date };
 
@@ -77,9 +85,37 @@
 		totalExpenses = expSeries && Array.isArray(expSeries.data) ? sumData(expSeries.data) : 0;
 	};
 
+	const startYear = Number.isNaN(created.getTime())
+		? selectedYear // fallback: this year if createdAt invalid
+		: Math.min(created.getFullYear(), selectedYear); // clamp if future
+
+	const endYear = new Date().getFullYear();
+
+	function validMonthsFor(year: number): number[] {
+		let min = 1,
+			max = 12;
+
+		if (!Number.isNaN(created.getTime()) && year === createdYear) {
+			min = createdMonth; // can’t pick months before account was created
+		}
+		if (year === currentYear) {
+			max = currentMonth; // can’t pick months in the future
+		}
+		return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+	}
+
+	const years: number[] = Array.from({ length: endYear - startYear + 1 }, (_, i) => endYear - i);
+
+	// ensure default is in range
+	if (!years.includes(selectedYear)) selectedYear = endYear;
+
 	// Update totals whenever series changes
 	$effect(() => {
 		calculateTotals(series);
+		const months = validMonthsFor(selectedYear);
+		if (!months.includes(selectedMonth)) {
+			selectedMonth = months[months.length - 1]; // snap to latest allowed month
+		}
 	});
 
 	function resolveRange(input?: RangeInput): { from: Date; to: Date } {
@@ -296,16 +332,17 @@
 		<Report bind:this={reportRef} bind:month={selectedMonth} bind:year={selectedYear} />
 
 		<!-- Trigger PDF from parent -->
-		<div class="flex justify-center pd-4 space-x-4 py-5">
-			<select bind:value={selectedMonth}>
-				{#each Array(12) as _, i}
-					<option value={i + 1}>{i + 1}</option>
+		<div class="pd-4 flex justify-center space-x-4 py-5">
+			<select bind:value={selectedMonth} class="px-3 py-2">
+				{#each validMonthsFor(selectedYear) as m}
+					<option value={m}>{m}</option>
 				{/each}
 			</select>
 
-			<select bind:value={selectedYear}>
-				<option value={2024}>2024</option>
-				<option value={2025}>2025</option>
+			<select bind:value={selectedYear} class="rounded-md px-3 py-2">
+				{#each years as y}
+					<option value={y}>{y}</option>
+				{/each}
 			</select>
 			<button class="button" onclick={downloadPDF}>
 				<svg
