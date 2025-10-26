@@ -43,7 +43,7 @@
               class="group relative inline-flex items-center justify-center overflow-hidden rounded-xl
                      bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-medium text-gray-900
                      focus:outline-none focus:ring-4 focus:ring-lime-200"
-              on:click={() => openAuth('login')}
+              onclick={() => openAuth('login')}
               aria-label="Log in"
             >
               <span class="relative rounded-[10px] bg-white px-5 py-2 transition-all duration-75 ease-in group-hover:bg-transparent">
@@ -54,7 +54,7 @@
               class="group relative inline-flex items-center justify-center overflow-hidden rounded-xl
                      bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-semibold text-gray-900
                      focus:outline-none focus:ring-4 focus:ring-lime-200"
-              on:click={() => openAuth('signup')}
+              onclick={() => openAuth('signup')}
               aria-label="Sign up"
             >
               <span class="relative rounded-[10px] bg-white px-5 py-2 transition-all duration-75 ease-in group-hover:bg-transparent">
@@ -66,7 +66,7 @@
           <!-- mobile -->
           <button
             class="sm:hidden inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white"
-            on:click={() => (mobileOpen = !mobileOpen)}
+            onclick={() => (mobileOpen = !mobileOpen)}
             aria-label="Toggle menu"
           >
             <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
@@ -81,7 +81,7 @@
               class="group relative inline-flex items-center justify-center overflow-hidden rounded-xl
                      bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-medium text-gray-900
                      focus:outline-none focus:ring-4 focus:ring-lime-200"
-              on:click={() => openAuth('login')}
+              onclick={() => openAuth('login')}
             >
               <span class="relative w-full rounded-[10px] bg-white px-5 py-2 text-center transition-all group-hover:bg-transparent">Log in</span>
             </button>
@@ -89,7 +89,7 @@
               class="group relative inline-flex items-center justify-center overflow-hidden rounded-xl
                      bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-sm font-semibold text-gray-900
                      focus:outline-none focus:ring-4 focus:ring-lime-200"
-              on:click={() => openAuth('signup')}
+              onclick={() => openAuth('signup')}
             >
               <span class="relative w-full rounded-[10px] bg-white px-5 py-2 text-center transition-all group-hover:bg-transparent">Sign up</span>
             </button>
@@ -116,7 +116,7 @@
           class="group relative inline-flex items-center justify-center overflow-hidden rounded-2xl
                  bg-gradient-to-br from-teal-300 to-lime-300 p-0.5 text-base font-semibold text-gray-900
                  focus:outline-none focus:ring-4 focus:ring-lime-200"
-          on:click={() => openAuth('signup')}
+          onclick={() => openAuth('signup')}
         >
           <span class="relative rounded-[14px] bg-white px-6 py-3 transition-all duration-75 ease-in group-hover:bg-transparent">
             Get started free
@@ -125,7 +125,8 @@
         <button
           class="rounded-2xl border border-black/10 bg-white/85 px-6 py-3 text-base shadow-sm backdrop-blur
                  hover:bg-white"
-          on:click={() => openAuth('login')}
+          onclick={() => openAuth('login')}
+          name="Already have an account?"
         >
           Already have an account?
         </button>

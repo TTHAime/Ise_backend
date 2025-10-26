@@ -23,8 +23,9 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check .",
 		"test:unit": "vitest",
-		"test": "npm run test:unit -- --run && npm run test:e2e",
-		"test:e2e": "playwright test"
+		"test:all": "npm run test:unit -- --run && npm run test:e2e",
+		"test:ui" : "playwright test --ui",
+		"test": "playwright test"
 	},
 	"devDependencies": {
 		"@flowbite-svelte-plugins/chart": "^0.2.4",
