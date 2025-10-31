@@ -1,6 +1,38 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
 	import { ButtonToggleGroup, ButtonToggle } from 'flowbite-svelte';
+	import axios from 'axios';
+	import { ApiRoot,loadAll } from '$lib/utils/stores';
+	import NotificationDialog from '$lib/components/NotificationModal.svelte';
+
+	type NotificationType = 'success' | 'error' | 'warning' | 'info';
+
+	type Notification = {
+		isOpen: boolean;
+		message: string;
+		type?: NotificationType;
+		title?: string;
+	};
+
+	let notification: Notification = $state({
+		isOpen: false,
+		message: '',
+		type: 'success',
+		title: ''
+	});
+
+	function showNotification(message: string, type: NotificationType = 'success', title = '') {
+		notification = {
+			isOpen: true,
+			message,
+			type,
+			title
+		};
+	}
+
+	function closeNotification() {
+		notification = { ...notification, isOpen: false };
+	}
 
 	// Shared types
 	export type Category = {
@@ -198,6 +230,26 @@
 		});
 	}
 
+	async function handleDelete() {
+		await axios
+			.delete(`${ApiRoot}transaction/${editTxn?.id}`, {
+				withCredentials: true
+			})
+			.then(async (response) => {
+				if (response.status === 200) {
+					showNotification('Transaction deleted successfully.', 'success');
+					await new Promise((resolve) => setTimeout(resolve, 4500)); // wait a bit before closing
+					if (notification.isOpen === false) {
+						close();
+					}
+				} else {
+					showNotification('Failed to delete transaction.', 'error');
+				}
+			}).catch((error) => {
+				showNotification('Failed to delete transaction.', 'error');
+			});
+	}
+
 	const submitLabel = $derived(editTxn ? 'Update Transaction' : 'Add Transaction');
 </script>
 
@@ -256,6 +308,7 @@
 							Category
 							<div class="flex items-center rounded-2xl ring-1 ring-gray-300 dark:ring-gray-700">
 								<select
+									name="dropdownCate"
 									bind:value={categorySel}
 									class="w-full rounded-2xl bg-transparent px-4 py-3 outline-none"
 									bind:this={firstField}
@@ -403,12 +456,29 @@
 						>
 							{submitLabel}
 						</button>
+						{#if editTxn}
+							<button
+								type="button"
+								onclick={handleDelete}
+								class="ms-3 inline-flex items-center justify-center rounded-2xl bg-red-400 px-6 py-3 text-white shadow hover:bg-red-600"
+							>
+								Delete
+							</button>
+						{/if}
 					</div>
 				</div>
 			</form>
 		</div>
 	</div>
 {/if}
+
+<NotificationDialog
+	isOpen={notification.isOpen}
+	message={notification.message}
+	type={notification.type}
+	title={notification.title}
+	onClose={closeNotification}
+/>
 
 <style>
 	.box-transaction-expense {

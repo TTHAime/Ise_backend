@@ -4,7 +4,28 @@
 	import { goto } from '$app/navigation';
 	import { redirect } from '@sveltejs/kit';
 	import { ApiRoot } from '$lib/utils/stores';
+	import NotificationDialog from './NotificationModal.svelte';
 	import axios from 'axios';
+
+	let notification = $state({
+		isOpen: false,
+		message: '',
+		type: 'success',
+		title: ''
+	});
+
+	function showNotification(message, type = 'success', title = '') {
+		notification = {
+			isOpen: true,
+			message,
+			type,
+			title
+		};
+	}
+
+	function closeNotification() {
+		notification = { ...notification, isOpen: false };
+	}
 
 	let firstField: HTMLInputElement | null = null;
 	let overlay: HTMLDivElement | null = $state(null);
@@ -32,25 +53,28 @@
 
 		const postdata = { email, password };
 
-		const response = await axios(`${ApiRoot}auth/login`, {
+		await axios(`${ApiRoot}auth/login`, {
 			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
 			headers: { 'Content-Type': 'application/json' },
 			data: postdata, // axios sends JSON for plain objects
-			validateStatus: () => true // mimic fetch's response.ok check
-		}).then((res) => {
-			login();
-			if(res.status === 200){
-				// alert('Form submitted successfully!');
-				navigateToHome();
-			}
-		}).catch((err) => {
-			alert('Error submitting form.',err);
-		});
+		})
+			.then(async (res) => {
+				login();
+				if (res.status === 200) {
+					showNotification('Logged in successfully!', 'success');
+					await new Promise((resolve) => setTimeout(resolve, 2000)); // wait a bit before closing
+					login();
+					navigateToHome();
+				}
+			})
+			.catch(async(err) => {
+				showNotification('Error submitting form.', 'error');
+				await new Promise((resolve) => setTimeout(resolve, 3000)); // wait a bit before closing
+			});
 	}
 
 	async function handleSubmitsignup() {
-		// alert(`Email: ${email}\nPassword: ${password}`); // check bind value
 		const postdata = {
 			email,
 			password,
@@ -58,19 +82,25 @@
 			name
 		};
 
-		const response = await axios(`${ApiRoot}auth/register`, {
+		await axios(`${ApiRoot}auth/register`, {
 			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
 			headers: { 'Content-Type': 'application/json' },
 			data: postdata, // axios sends JSON for plain objects
 			validateStatus: () => true // so we can mimic fetch's response.ok
-		}).then((res) => {
-			// alert('Form submitted successfully!');
-			navigateToHome();
-			signup();
-		}).catch((err) => {
-			console.log('Error submitting form.',err);
 		})
+			.then(async(res) => {
+				if (res.status === 201) {
+					showNotification('Signed up successfully!', 'success');
+					await new Promise((resolve) => setTimeout(resolve, 2000)); // wait a bit before closing
+					signup();
+					navigateToHome();
+				}
+			})
+			.catch(async (err) => {
+				showNotification('Error submitting form.', 'error');
+				await new Promise((resolve) => setTimeout(resolve, 3000)); // wait a bit before closing
+			});
 	}
 
 	function loginWithGoogle() {
@@ -111,11 +141,13 @@
 			headers: { 'Content-Type': 'application/json' },
 			data: postData,
 			validateStatus: () => true
-		}).then((res) => {
-			mode = 'resetPass';
-		}).catch((err) => {
-			console.error("Error during sending reset password:", err);
 		})
+			.then((res) => {
+				mode = 'resetPass';
+			})
+			.catch((err) => {
+				console.error('Error during sending reset password:', err);
+			});
 	}
 
 	async function verifyCode() {
@@ -211,7 +243,12 @@
 				<p class="head-text-shadow text-center text-6xl font-black text-gray-900">LOG IN</p>
 				<div style="margin-top: 20%;"></div>
 				<!-- form -->
-				<form name="Login form" class="mx-auto max-w-sm" onsubmit={handleSubmitlogin} id="loginform">
+				<form
+					name="Login form"
+					class="mx-auto max-w-sm"
+					onsubmit={handleSubmitlogin}
+					id="loginform"
+				>
 					<div class="mb-5">
 						<label for="email" class="normal-text mb-2 block text-sm font-medium text-gray-900"
 							>Email</label
@@ -503,3 +540,11 @@
 		</div>
 	</div>
 {/if}
+
+<NotificationDialog
+	isOpen={notification.isOpen}
+	message={notification.message}
+	type={notification.type}
+	title={notification.title}
+	onClose={closeNotification}
+/>

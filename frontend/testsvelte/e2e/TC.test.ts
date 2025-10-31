@@ -114,6 +114,7 @@ test.describe('UC-01, Login', () => {
 		await dialog.getByLabel(/^email$/i).fill('Singha2608@gmail.com');
 		await dialog.getByPlaceholder('password').fill('Pinto2608?');
 
+		
 		await dialog
 			.locator('button')
 			.filter({ hasText: /^LOG IN$/ })
@@ -234,7 +235,22 @@ test.describe('UC-03, Manage Transaction ', () => {
 
 	test('TC-07, create valid', async ({ page }) => {
 		//test beforeEach
-		expect(true).toBe(true);
+		// await page.getByRole('button', { name: 'Open user menu' }).click();
+		await page.goto('/Transaction');
+		await page.locator('button[name="Add Transaction"]').click();
+		
+		await page.getByRole('radio', { name: 'Expense' }).click();
+		const categoryOption = page.getByLabel('Category Select Category📋');
+		categoryOption.selectOption( '🍽️ Food & Dining');
+		await page.getByRole('textbox', { name: 'Note' }).fill('Lunch at cafe');
+		await page.getByRole('spinbutton', { name: 'Amount' }).fill('15.50');
+
+		await page.getByRole('button', { name: 'Add Transaction', exact: true }).click({ timeout: 7000 });
+		await page.waitForTimeout(2000);
+
+		await expect(page.getByText('Lunch at cafe')).toBeVisible();
+		await expect(page.getByText('15.50')).toBeVisible();
+
 	});
 	
 	test('TC-08, create invalid', async ({ page }) => {
