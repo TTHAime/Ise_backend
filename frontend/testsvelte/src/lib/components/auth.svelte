@@ -28,6 +28,7 @@
 	let emailForgetPassword: string = $state('');
 
 	async function handleSubmitlogin() {
+		alert(`Email: ${email}\nPassword: ${password}`); // check bind value for dev
 
 		const postdata = { email, password };
 
@@ -41,7 +42,7 @@
 			login();
 			navigateToHome();
 		}).catch((err) => {
-			console.log('Error submitting form.',err);
+			alert('Error submitting form.',err);
 		});
 	}
 
@@ -61,6 +62,7 @@
 			data: postdata, // axios sends JSON for plain objects
 			validateStatus: () => true // so we can mimic fetch's response.ok
 		}).then((res) => {
+			alert('Form submitted successfully!');
 			navigateToHome();
 			signup();
 		}).catch((err) => {
@@ -124,6 +126,7 @@
 	}
 
 	function clickBackDrop(e: MouseEvent) {
+		console.log(e.target);
 		if (e.target === e.currentTarget) {
 			close();
 		}

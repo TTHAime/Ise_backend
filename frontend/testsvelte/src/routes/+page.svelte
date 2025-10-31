@@ -17,7 +17,7 @@
 </script>
 
 <div class="min-h-dvh bg-[#FFF8EF]">
-  <div class="relative min-h-dvh overflow-clip">
+  <div class="relative min-h-dvh">
     <!-- blobs -->
     <div class="pointer-events-none absolute -top-28 -left-24 h-[360px] w-[460px] rotate-[10deg]
                 rounded-[40%_60%_55%_45%/60%_40%_60%_40%]

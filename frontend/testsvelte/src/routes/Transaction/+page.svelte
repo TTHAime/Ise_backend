@@ -4,8 +4,28 @@
 	import TransList from '$lib/components/TransactionList.svelte';
 	import { onMount } from 'svelte';
 	import { ApiRoot } from '$lib/utils/stores';
+	import NotificationDialog from '$lib/components/NotificationModal.svelte';
 	import axios from 'axios';
 
+	let notification = $state({
+		isOpen: false,
+		message: '',
+		type: 'success',
+		title: ''
+	});
+
+	function showNotification(message, type = 'success', title = '') {
+		notification = {
+			isOpen: true,
+			message,
+			type,
+			title
+		};
+	}
+
+	function closeNotification() {
+		notification = { ...notification, isOpen: false };
+	}
 	const symbolLeft = '<';
 	const symbolRight = '>';
 	let label = $state('Date');
@@ -28,8 +48,8 @@
 		{ id: 'other-income', name: 'Other Income', color: '#22C55E', icon: '+', type: 'INCOME' }
 	]);
 
-	let Addshow = $state(false);
 	let editTxn: import('$lib/components/AddTransaction.svelte').EditTxn | null = $state(null);
+	let Addshow = $state(false);
 
 	function openAdd() {
 		editTxn = null;
@@ -55,7 +75,18 @@
 		Addshow = true;
 	}
 
-	async function SubmitTransaction(p: { id: any; type: any; category: any; date: any; note: any; amount: any; currency?: string; recurrence?: "NEVER" | "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY"; ends?: string; receipt?: File | null | undefined; }) {
+	async function SubmitTransaction(p: {
+		id: any;
+		type: any;
+		category: any;
+		date: any;
+		note: any;
+		amount: any;
+		currency?: string;
+		recurrence?: 'NEVER' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+		ends?: string;
+		receipt?: File | null | undefined;
+	}) {
 		const method = p.id ? 'PATCH' : 'POST';
 		const url = p.id
 			? `${ApiRoot}transaction/`.concat(p.id) // up
@@ -73,12 +104,16 @@
 			withCredentials: true,
 			headers: { 'Content-Type': 'application/json' },
 			data: JSON.stringify(body)
-		}).then(function (response) {
-			//yay
-		}).catch(function (error) {
-            alert({error});
-        });
-		
+		})
+			.then(function (response) {
+				showNotification(
+					`Transaction ${p.id ? 'updated' : 'added'} successfully.`,
+					'success'
+				);
+			})
+			.catch(function (error) {
+				showNotification('Failed to submit transaction.', 'error');
+			});
 
 		// close & clear
 		Addshow = false;
@@ -101,20 +136,24 @@
 
 	async function loadCategories() {
 		const [expRes, incRes] = await Promise.all([
-			axios.get(`${ApiRoot}category?type=EXPENSE`, {
-				withCredentials: true,
-				headers: { Accept: 'application/json' }
-			}).catch((err) => {
-				console.error("Error fetching expense categories:", err);
-				return { data: [] };
-			}),
-			axios.get(`${ApiRoot}category?type=INCOME`, {
-				withCredentials: true,
-				headers: { Accept: 'application/json' }
-			}).catch((err) => {
-				console.error("Error fetching income categories:", err);
-				return { data: [] };
-			})
+			axios
+				.get(`${ApiRoot}category?type=EXPENSE`, {
+					withCredentials: true,
+					headers: { Accept: 'application/json' }
+				})
+				.catch((err) => {
+					console.error('Error fetching expense categories:', err);
+					return { data: [] };
+				}),
+			axios
+				.get(`${ApiRoot}category?type=INCOME`, {
+					withCredentials: true,
+					headers: { Accept: 'application/json' }
+				})
+				.catch((err) => {
+					console.error('Error fetching income categories:', err);
+					return { data: [] };
+				})
 		]);
 
 		const [expRaw, incRaw] = (await Promise.all([expRes.data, incRes.data])) as [
@@ -169,12 +208,13 @@
 	let PeriodIncome = $state(0);
 	let recentdata = $state([]);
 
-	function Parsedata(data: { data: { totalExpense: number; totalIncome: number; recentTransactions: never[]; }; }) {
+	function Parsedata(data: {
+		data: { totalExpense: number; totalIncome: number; recentTransactions: never[] };
+	}) {
 		PeriodExpense = data.data.totalExpense;
 		PeriodIncome = data.data.totalIncome;
 		recentdata = data.data.recentTransactions;
 	}
-
 </script>
 
 {#key editTxn?.id ?? 'create'}
@@ -271,3 +311,11 @@
 		/>
 	</div>
 </div>
+
+<NotificationDialog
+	isOpen={notification.isOpen}
+	message={notification.message}
+	type={notification.type}
+	title={notification.title}
+	onClose={closeNotification}
+/>

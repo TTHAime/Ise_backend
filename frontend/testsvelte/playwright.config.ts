@@ -1,5 +1,4 @@
 import { defineConfig } from '@playwright/test';
-import { Html } from 'layerchart';
 
 export default defineConfig({
 	webServer: {
