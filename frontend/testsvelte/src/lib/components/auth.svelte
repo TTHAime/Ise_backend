@@ -4,7 +4,28 @@
 	import { goto } from '$app/navigation';
 	import { redirect } from '@sveltejs/kit';
 	import { ApiRoot } from '$lib/utils/stores';
+	import NotificationDialog from './NotificationModal.svelte';
 	import axios from 'axios';
+
+	let notification = $state({
+		isOpen: false,
+		message: '',
+		type: 'success',
+		title: ''
+	});
+
+	function showNotification(message, type = 'success', title = '') {
+		notification = {
+			isOpen: true,
+			message,
+			type,
+			title
+		};
+	}
+
+	function closeNotification() {
+		notification = { ...notification, isOpen: false };
+	}
 
 	let firstField: HTMLInputElement | null = null;
 	let overlay: HTMLDivElement | null = $state(null);
@@ -28,24 +49,30 @@
 	let emailForgetPassword: string = $state('');
 
 	async function handleSubmitlogin() {
-		
 		const postdata = { email, password };
 
-		const response = await axios(`${ApiRoot}auth/login`, {
+		await axios(`${ApiRoot}auth/login`, {
 			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
 			headers: { 'Content-Type': 'application/json' },
 			data: postdata, // axios sends JSON for plain objects
-			validateStatus: () => true // mimic fetch's response.ok check
-		}).then((res) => {
-			login();
-			navigateToHome();
-		}).catch((err) => {
-			alert('Error submitting form.',err);
-		});
+		})
+			.then(async (res) => {
+				login();
+				if (res.status === 200) {
+					showNotification('Logged in successfully!', 'success');
+					await new Promise((resolve) => setTimeout(resolve, 2000)); // wait a bit before closing
+					login();
+					navigateToHome();
+				}
+			})
+			.catch(async(err) => {
+				showNotification('Error submitting form.', 'error');
+				await new Promise((resolve) => setTimeout(resolve, 3000)); // wait a bit before closing
+			});
 	}
 
-	async function handleSubmitsignup() {		
+	async function handleSubmitsignup() {
 		const postdata = {
 			email,
 			password,
@@ -53,18 +80,25 @@
 			name
 		};
 
-		const response = await axios(`${ApiRoot}auth/register`, {
+		await axios(`${ApiRoot}auth/register`, {
 			method: 'POST',
 			withCredentials: true, // like fetch { credentials: 'include' }
 			headers: { 'Content-Type': 'application/json' },
 			data: postdata, // axios sends JSON for plain objects
 			validateStatus: () => true // so we can mimic fetch's response.ok
-		}).then((res) => {
-			navigateToHome();
-			signup();
-		}).catch((err) => {
-			console.log('Error submitting form.',err);
 		})
+			.then(async(res) => {
+				if (res.status === 201) {
+					showNotification('Signed up successfully!', 'success');
+					await new Promise((resolve) => setTimeout(resolve, 2000)); // wait a bit before closing
+					signup();
+					navigateToHome();
+				}
+			})
+			.catch(async (err) => {
+				showNotification('Error submitting form.', 'error');
+				await new Promise((resolve) => setTimeout(resolve, 3000)); // wait a bit before closing
+			});
 	}
 
 	function loginWithGoogle() {
@@ -105,11 +139,13 @@
 			headers: { 'Content-Type': 'application/json' },
 			data: postData,
 			validateStatus: () => true
-		}).then((res) => {
-			mode = 'resetPass';
-		}).catch((err) => {
-			console.error("Error during sending reset password:", err);
 		})
+			.then((res) => {
+				mode = 'resetPass';
+			})
+			.catch((err) => {
+				console.error('Error during sending reset password:', err);
+			});
 	}
 
 	async function verifyCode() {
@@ -123,6 +159,7 @@
 	}
 
 	function clickBackDrop(e: MouseEvent) {
+		console.log(e.target);
 		if (e.target === e.currentTarget) {
 			close();
 		}
@@ -185,6 +222,7 @@
 
 	<!-- Modal login/sign up -->
 	<div
+		title="Modal"
 		class="h-md max-h-md fixed inset-0 z-50 flex items-center justify-center overflow-auto pb-4 pt-4"
 		onclick={clickBackDrop}
 		aria-hidden="true"
@@ -203,7 +241,12 @@
 				<p class="head-text-shadow text-center text-6xl font-black text-gray-900">LOG IN</p>
 				<div style="margin-top: 20%;"></div>
 				<!-- form -->
-				<form class="mx-auto max-w-sm" onsubmit={handleSubmitlogin} id="loginform">
+				<form
+					name="Login form"
+					class="mx-auto max-w-sm"
+					onsubmit={handleSubmitlogin}
+					id="loginform"
+				>
 					<div class="mb-5">
 						<label for="email" class="normal-text mb-2 block text-sm font-medium text-gray-900"
 							>Email</label
@@ -284,6 +327,7 @@
 				<div style="margin-top: 20%;"></div>
 				<!-- form -->
 				<form
+					name="Signup form"
 					class="mx-auto max-w-sm"
 					id="signupform"
 					onsubmit={(e) => {
@@ -294,11 +338,12 @@
 					<div class="mb-5">
 						<label for="email" class="mb-2 block text-sm font-medium text-gray-900">Email</label>
 						<input
+							name="esignup"
 							type="email"
 							id="email"
 							bind:value={email}
 							class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2.5 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:placeholder-gray-400 dark:focus:border-blue-500 dark:focus:ring-blue-500"
-							placeholder="name@flowbite.com"
+							placeholder="Expen@user.com"
 							required
 						/>
 						<label
@@ -493,3 +538,11 @@
 		</div>
 	</div>
 {/if}
+
+<NotificationDialog
+	isOpen={notification.isOpen}
+	message={notification.message}
+	type={notification.type}
+	title={notification.title}
+	onClose={closeNotification}
+/>

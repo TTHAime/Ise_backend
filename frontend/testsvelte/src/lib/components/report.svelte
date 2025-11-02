@@ -8,9 +8,10 @@
 	import { DownloadOutline, MinimizeOutline, XSolid } from 'flowbite-svelte-icons';
 
 	//For test only
-
-	let { month = $bindable(9), year = $bindable(2025) } = $props<{ month?: number; year?: number }>();
-
+	let { month = $bindable(), year = $bindable() } = $props<{
+		month?: number;
+		year?: number;
+	}>();
 	let showPreview = $state(false);
 
 	type DailyDatum = {
@@ -57,44 +58,6 @@
 		categoryBreakdown: CategoryBreakdown[];
 	};
 
-	// ---- Pure frontend mock data ----
-	const monthlyReportMock: MonthlyReport = {
-		month: 'กันยายน',
-		year: 2025,
-		totalIncome: 60500,
-		totalExpense: 17230,
-		netIncome: 43270,
-		transactionCount: 13,
-		dailyData: [
-			{ date: '2025-09-09', income: 2500, expense: 0, count: 1 },
-			{ date: '2025-09-21', income: 0, expense: 110, count: 3 },
-			{ date: '2025-09-22', income: 29000, expense: 17040, count: 5 },
-			{ date: '2025-09-28', income: 29000, expense: 80, count: 4 }
-		],
-		categoryBreakdown: [
-			{
-				categoryId: '__UNCATEGORIZED__',
-				categoryName: '(ไม่มีหมวดหมู่)',
-				categoryColor: '#9CA3AF',
-				categoryIcon: 'question',
-				type: 'INCOME',
-				total: 60500,
-				count: 5,
-				percentage: 100
-			},
-			{
-				categoryId: '__UNCATEGORIZED__',
-				categoryName: '(ไม่มีหมวดหมู่)',
-				categoryColor: '#9CA3AF',
-				categoryIcon: 'question',
-				type: 'EXPENSE',
-				total: 17230,
-				count: 8,
-				percentage: 100
-			}
-		]
-	};
-
 	type reportMonthly = {
 		month: string;
 		year: number;
@@ -115,16 +78,13 @@
 		}>;
 	};
 
-	//derived year and month
-	// let year:number = $derived(y ?? null);
-	// let month:number = $derived(m ?? null);
-
-	//loading and error
-	let loading = true;
+	let loading = $state(true);
+	let loadingProgress = $state(0);
+	let loadingStage = $state('Initializing...');
 	let error = $state('');
 	let dataMonthly: reportMonthly | null = $state(null);
+	let isComputing = $state(false);
 
-	//Transform API data into MonthlyReport type data.
 	function toMonthlyReport(raw: any): MonthlyReport {
 		return {
 			month: String(raw.month),
@@ -156,10 +116,21 @@
 		};
 	}
 
-	//Load data from API
 	async function loadDataReport() {
 		if (year === null && month === null) return;
+
+		loading = true;
+		loadingProgress = 0;
+		error = '';
+
+		const startTime = Date.now();
+		const minimumLoadTime = 15500; // 1.5 seconds minimum
+
 		try {
+			// Stage 1: Fetching data (0-40%)
+			loadingStage = 'Fetching data from server...';
+			loadingProgress = 10;
+
 			const res = await axios(`${ApiRoot}report/monthly?year=${year}&month=${month}`, {
 				method: 'GET',
 				withCredentials: true,
@@ -169,19 +140,74 @@
 
 			if (!(res.status >= 200 && res.status <= 300))
 				throw new Error(`API ${res.status} ${res.statusText}`);
+
+			loadingProgress = 40;
+
+			// Stage 2: Processing data (40-70%)
+			loadingStage = 'Processing report data...';
+			const processingDelay = Math.max(300, minimumLoadTime * 0.25 - (Date.now() - startTime));
+			await new Promise((resolve) => setTimeout(resolve, processingDelay));
+
 			const report: MonthlyReport = toMonthlyReport(res.data?.data);
+			loadingProgress = 70;
+
+			// Stage 3: Computing statistics (70-90%)
+			loadingStage = 'Computing statistics...';
+			const computingDelay = Math.max(300, minimumLoadTime * 0.25);
+			await new Promise((resolve) => setTimeout(resolve, computingDelay));
+
 			dataMonthly = report;
+			loadingProgress = 90;
+
+			// Stage 4: Finalizing (90-100%)
+			loadingStage = 'Finalizing report...';
+			const finalizingDelay = Math.max(200, minimumLoadTime * 0.15);
+			await new Promise((resolve) => setTimeout(resolve, finalizingDelay));
+
+			loadingProgress = 100;
+			loadingStage = 'Report ready!';
+
+			// Ensure minimum total time
+			const elapsedTime = Date.now() - startTime;
+			const remainingTime = minimumLoadTime - elapsedTime;
+
+			if (remainingTime > 0) {
+				await new Promise((resolve) => setTimeout(resolve, remainingTime));
+			}
+
 			console.log('Load Data', report);
-			// dataMonthly = monthlyReportMock;
+			// console.log(`Total loading time: ${Date.now() - startTime}ms`);
 		} catch (e: any) {
 			error = e?.message ?? 'Failed to load data.';
+			loadingProgress = 0;
+
+			// Apply minimum time even for errors
+			const elapsedTime = Date.now() - startTime;
+			const remainingTime = minimumLoadTime - elapsedTime;
+
+			if (remainingTime > 0) {
+				await new Promise((resolve) => setTimeout(resolve, remainingTime));
+			}
 		} finally {
-			loading = false;
+			setTimeout(() => {
+				loading = false;
+				isComputing = false;
+			}, 300);
 		}
 	}
 
-	onMount(loadDataReport);
+	$effect(() => {
+		if (month != null && year != null) {
+			// Reset states when month/year changes
+			loading = true;
+			loadingProgress = 0;
+			loadingStage = 'Initializing...';
+			dataMonthly = null; // Clear previous data
+			error = '';
 
+			loadDataReport();
+		}
+	});
 	//PDF Header and footer
 	function addHeaderMonthly(
 		pdf: jsPDF,
@@ -215,6 +241,7 @@
 		//left Column = Income and expense
 		let rowY = sepY + 18;
 		const leftColX = left;
+
 		pdf.setFontSize(labelSize);
 		pdf.text('Total Income', leftColX, rowY);
 		pdf.setFontSize(valueSize);
@@ -260,6 +287,7 @@
 		const pageCount = pdf.getNumberOfPages();
 		const size = pdf.internal.pageSize;
 		pdf.setFontSize(10);
+
 		for (let i = 1; i <= pageCount; i++) {
 			pdf.setPage(i);
 			const footerY = size.getHeight() - 20;
@@ -299,24 +327,6 @@
 		pdf.text(value, valX, y + 36, { align: alignRight ? 'right' : 'left' });
 	}
 
-	// //Write contents into pdf
-	// function addTextBlock(pdf: jsPDF, text: string, x: number, y:number, maxWidth: number, lineHeight: number, bottomMargin: number, onNewPage?: () => number): number {
-	//     const pageHeight = pdf.internal.pageSize.getHeight();
-	//     const lines = pdf.splitTextToSize(text, maxWidth) as string[];
-
-	//     for(const line of lines){
-	//         //Check if current y pos is more than page height
-	//         if(y + lineHeight > pageHeight - bottomMargin){
-	//             pdf.addPage();
-	//             y = onNewPage? onNewPage() : 70;
-	//         }
-	//         pdf.text(line, x, y);
-	//         y += lineHeight;
-	//     }
-
-	//     return y; //return y for footer.
-	// }
-
 	//Export to PDF
 	export function exportPDF() {
 		if (!dataMonthly) return;
@@ -334,6 +344,7 @@
 		pdf.setFont('helvetica', 'bold');
 		pdf.setFontSize(18);
 		pdf.text('Monthly Report', pageWidth / 2, 34, { align: 'center' });
+
 		pdf.setFont('helvetica', 'normal');
 		pdf.setFontSize(12);
 		pdf.text(`Month: ${month}, Year: ${year}`, pageWidth / 2, 52, { align: 'center' });
@@ -342,6 +353,7 @@
 		const cradWidth = (contentWidth - 16) / 2; //16px gap
 		const row1Y = top;
 		const row2Y = row1Y + 64; //each card height 52 + 12 spacing
+
 		kpiCard(
 			pdf,
 			left,
@@ -447,17 +459,20 @@
 		});
 
 		addFooter(pdf);
-
 		pdf.save(`report-${dataMonthly.month ?? 'export'}.pdf`);
 	}
 
 	export function showPreviewModal() {
-		if (!dataMonthly) {
-			loadDataReport().then(() => {
-				showPreview = true;
-			});
-		} else {
-			showPreview = true;
+		// Always show modal and trigger fresh load
+		showPreview = true;
+		loading = true;
+		loadingProgress = 0;
+		loadingStage = 'Initializing...';
+		dataMonthly = null; // Clear any existing data
+		error = '';
+
+		if (month != null && year != null) {
+			loadDataReport();
 		}
 	}
 
@@ -471,6 +486,7 @@
 
 	let incomeCategories = dataMonthly?.categoryBreakdown.filter((c) => c.type === 'INCOME') ?? [];
 	let expenseCategories = dataMonthly?.categoryBreakdown.filter((c) => c.type === 'EXPENSE') ?? [];
+
 	$effect(() => {
 		incomeCategories = dataMonthly?.categoryBreakdown.filter((c) => c.type === 'INCOME') ?? [];
 		expenseCategories = dataMonthly?.categoryBreakdown.filter((c) => c.type === 'EXPENSE') ?? [];
@@ -489,9 +505,60 @@
 			<p class="text-sm">{error}</p>
 		</div>
 	{:else if loading}
-		<div class="flex items-center justify-center py-12">
-			<Spinner size="12" />
-			<span class="ml-3">Loading report data...</span>
+		<div class="flex flex-col items-center justify-center space-y-6 py-16">
+			<!-- Animated Spinner -->
+			<div class="relative">
+				<div
+					class="h-20 w-20 animate-spin rounded-full border-4 border-gray-200 border-t-green-500"
+				></div>
+				<div class="absolute inset-0 flex items-center justify-center">
+					<span class="text-lg font-bold text-green-600">{loadingProgress}%</span>
+				</div>
+			</div>
+
+			<!-- Loading Stage Text -->
+			<div class="text-center">
+				<p class="text-lg font-semibold text-gray-700">{loadingStage}</p>
+				<p class="mt-1 text-sm text-gray-500">Please wait while we prepare your report</p>
+			</div>
+
+			<!-- Progress Bar -->
+			<div class="w-full max-w-md">
+				<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+					<div
+						class="h-full rounded-full bg-gradient-to-r from-green-400 to-green-600 transition-all duration-300 ease-out"
+						style="width: {loadingProgress}%"
+					></div>
+				</div>
+			</div>
+
+			<!-- Loading Steps Indicator -->
+			<div class="flex items-center space-x-4 text-xs text-gray-600">
+				<div class="flex items-center space-x-1">
+					<div
+						class="h-2 w-2 rounded-full {loadingProgress >= 10 ? 'bg-green-500' : 'bg-gray-300'}"
+					></div>
+					<span>Fetch</span>
+				</div>
+				<div class="flex items-center space-x-1">
+					<div
+						class="h-2 w-2 rounded-full {loadingProgress >= 40 ? 'bg-green-500' : 'bg-gray-300'}"
+					></div>
+					<span>Process</span>
+				</div>
+				<div class="flex items-center space-x-1">
+					<div
+						class="h-2 w-2 rounded-full {loadingProgress >= 70 ? 'bg-green-500' : 'bg-gray-300'}"
+					></div>
+					<span>Compute</span>
+				</div>
+				<div class="flex items-center space-x-1">
+					<div
+						class="h-2 w-2 rounded-full {loadingProgress >= 100 ? 'bg-green-500' : 'bg-gray-300'}"
+					></div>
+					<span>Ready</span>
+				</div>
+			</div>
 		</div>
 	{:else if dataMonthly}
 		<div class="max-h-[70vh] overflow-y-auto">
@@ -621,3 +688,11 @@
 		</div>
 	{/if}
 </Modal>
+
+<style>
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

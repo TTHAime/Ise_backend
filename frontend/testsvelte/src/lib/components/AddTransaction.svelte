@@ -2,8 +2,9 @@
 	import { fade } from 'svelte/transition';
 	import { ButtonToggleGroup, ButtonToggle } from 'flowbite-svelte';
 	import axios from 'axios';
-	import { ApiRoot,loadAll } from '$lib/utils/stores';
+	import { ApiRoot, loadAll } from '$lib/utils/stores';
 	import NotificationDialog from '$lib/components/NotificationModal.svelte';
+	import NotificationModal from '$lib/components/NotificationModal.svelte';
 
 	type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -213,8 +214,17 @@
 		const value = Number(amount);
 		const category = categorySel || null;
 
-		if (!category) return alert('Please select a category.');
-		if (!value || Number.isNaN(value) || value <= 0) return alert('Please enter a valid amount.');
+		const selectedDate = new Date(date);
+		const today = new Date();
+		today.setHours(0, 0, 0, 0);
+		selectedDate.setHours(0, 0, 0, 0);
+
+		if (selectedDate > today) {
+			return showNotification('Please select no future date.', 'warning');
+		}
+		if (!category) return showNotification('Please select a category.', 'warning');
+		if (!value || Number.isNaN(value) || value <= 0)
+			return showNotification('Please enter a valid amount.', 'warning');
 
 		onSubmit({
 			id: editTxn?.id,
@@ -245,7 +255,8 @@
 				} else {
 					showNotification('Failed to delete transaction.', 'error');
 				}
-			}).catch((error) => {
+			})
+			.catch((error) => {
 				showNotification('Failed to delete transaction.', 'error');
 			});
 	}
@@ -418,7 +429,7 @@
 					</div>
 
 					<div class="md:col-span-3">
-						<label class="mb-1 block text-sm text-gray-600 opacity-0">
+						<!-- <label class="mb-1 block text-sm text-gray-600 opacity-0">
 							Add Receipt
 							<div class="flex items-center gap-3">
 								<button
@@ -446,7 +457,7 @@
 									onchange={onFileChange}
 								/>
 							</div>
-						</label>
+						</label> -->
 					</div>
 
 					<div class="flex justify-end md:col-span-2">

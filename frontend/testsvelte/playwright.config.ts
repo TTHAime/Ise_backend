@@ -7,6 +7,6 @@ export default defineConfig({
 		reuseExistingServer: true
 	},
 	testDir: 'e2e',
-	reporter : 'html',
+	reporter: 'html',
 	fullyParallel: true,
 });
