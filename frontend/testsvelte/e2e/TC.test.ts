@@ -1,5 +1,6 @@
 import { test as base, expect, Page, Locator } from '@playwright/test';
 import { Faker, faker } from '@faker-js/faker';
+import { Verify } from 'crypto';
 
 /* -----------------------------------------------------------------------------
    Global fixture: disable animations + ensure hidden overlays don't eat clicks
@@ -197,7 +198,17 @@ test.describe('UC-02, Register', () => {
 		expect(response.ok()).toBeTruthy(); //check 200 ok
 		await expect(page).not.toHaveURL(/\/home$/); //redirect to home
 		//api messege check
+		test('TC-04-1, verify', async ({ page }) => {
+			const verifyUrl = response.body.url;
+			await page.goto(verifyUrl);
+
+			await expect(page.getByLabel('Verify')).toBeVisible();
+			
+			//call api get user by Id to check verify status?
+			//not test yet
+		});
 	});
+
 
 	test('TC-05, password mismatch', async ({ page }) => {
 		await openSignUpDialog(page);
@@ -358,9 +369,43 @@ test.describe.serial('UC-03, Manage Transaction ', () => {
 		await expect(response.ok()).toBeTruthy(); //200 ok is passed
 	});
 });
-// test.describe('UC-04, Reciept', () => {
-// test('TC-11, OCR success', async ({ page }) => {});
-// });
+test.describe('UC-04, Reciept', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.goto('/');
+
+		// Log in first
+		await openLoginDialog(page);
+		const dialog = loginDialog(page);
+		await dialog.getByLabel(/^email$/i).fill('Singha2608@gmail.com');
+		await dialog.getByPlaceholder('password').fill('Pinto2608?');
+		const responsePromise = page.waitForResponse(`${ApiRoot}auth/login`);
+		await dialog
+			.locator('button')
+			.filter({ hasText: /^LOG IN$/ })
+			.click();
+		const response = await responsePromise;
+
+		await page.waitForURL(/\/home$/);
+		await page.getByRole('button', { name: 'Open user menu' }).click();
+		await page.getByRole('link', { name: 'Transaction' }).click();
+	});
+	test('TC-11, OCR success', async ({ page }) => {
+		await page.locator('button[name="Add Transaction"]').click();
+
+		// Upload receipt
+		const [fileChooser] = await Promise.all([
+			page.waitForEvent('filechooser'),
+			await page.getByRole('button', { name: 'Add Receipt' }).click(),
+		]);
+		await fileChooser.setFiles('e2e/assets/receipt_sample.jpg');
+		await expect(page.getByText('receipt_sample.jpg')).toBeVisible();
+
+		await page.getByRole('button', { name: 'Add Transaction', exact: true }).click();
+		const res = page.waitForResponse(`${ApiRoot}transaction/slip`);
+		//test data in edit modal and complete it
+		//not finish
+	});
+});
 test.describe.serial('UC-05, Manage Categories', () => {
 	test.beforeEach(async ({ page }) => {
 		await page.goto('/');

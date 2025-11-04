@@ -4,7 +4,6 @@
 	import axios from 'axios';
 	import { ApiRoot, loadAll } from '$lib/utils/stores';
 	import NotificationDialog from '$lib/components/NotificationModal.svelte';
-	import NotificationModal from '$lib/components/NotificationModal.svelte';
 
 	type NotificationType = 'success' | 'error' | 'warning' | 'info';
 
@@ -80,6 +79,7 @@
 		onPrevPeriod?: () => void;
 		onNextPeriod?: () => void;
 		onSubmit?: (payload: SubmitPayload) => void;
+		uploadReceipt?: (file: File) => boolean;
 		editTxn?: EditTxn | null;
 	}>();
 
@@ -211,6 +211,13 @@
 
 	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
+		if (receiptInput != null && receiptFile != null) {
+			if(props.uploadReceipt(receiptFile)) {
+				showNotification('Receipt uploaded successfully.', 'success');
+			} else {
+				showNotification('Failed to upload receipt.', 'error');
+			}
+		}
 		const value = Number(amount);
 		const category = categorySel || null;
 
@@ -223,8 +230,7 @@
 			return showNotification('Please select no future date.', 'warning');
 		}
 		if (!category) return showNotification('Please select a category.', 'warning');
-		if (!value || Number.isNaN(value) || value <= 0)
-			return showNotification('Please enter a valid amount.', 'warning');
+		if (!value || Number.isNaN(value) || value <= 0) return showNotification('Please enter a valid amount.', 'warning');
 
 		onSubmit({
 			id: editTxn?.id,
@@ -429,7 +435,7 @@
 					</div>
 
 					<div class="md:col-span-3">
-						<!-- <label class="mb-1 block text-sm text-gray-600 opacity-0">
+						<label class="mb-1 block text-sm text-gray-600">
 							Add Receipt
 							<div class="flex items-center gap-3">
 								<button
@@ -457,7 +463,7 @@
 									onchange={onFileChange}
 								/>
 							</div>
-						</label> -->
+						</label>
 					</div>
 
 					<div class="flex justify-end md:col-span-2">

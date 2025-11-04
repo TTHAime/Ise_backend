@@ -96,6 +96,7 @@
 				}
 			})
 			.catch(async (err) => {
+				console.log(err);
 				showNotification('Error submitting form.', 'error');
 				await new Promise((resolve) => setTimeout(resolve, 3000)); // wait a bit before closing
 			});

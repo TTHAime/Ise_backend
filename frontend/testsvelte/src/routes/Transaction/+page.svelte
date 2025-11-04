@@ -106,10 +106,7 @@
 			data: JSON.stringify(body)
 		})
 			.then(function (response) {
-				showNotification(
-					`Transaction ${p.id ? 'updated' : 'added'} successfully.`,
-					'success'
-				);
+				showNotification(`Transaction ${p.id ? 'updated' : 'added'} successfully.`, 'success');
 			})
 			.catch(function (error) {
 				showNotification('Failed to submit transaction.', 'error');
@@ -119,6 +116,45 @@
 		Addshow = false;
 		editTxn = null;
 		loadall();
+	}
+
+	// Async uploader that returns a Promise<boolean>
+	async function uploadReceiptAsync(receiptFile: File | null): Promise<boolean> {
+		//didnt verify my api yet
+		if (!receiptFile) return (showNotification('No receipt file provided.', 'warning'), false);
+		const formData = new FormData();
+		formData.append('file', receiptFile);
+		await axios
+			.post(`${ApiRoot}transaction/slip`, {
+				withCredentials: true,
+				body: formData
+			})
+			.then((res) => {
+				if (res.status === 200) {
+					showNotification('Receipt uploaded successfully.', 'success');
+					const tt = {
+						id: res.data.transaction.transaction.id,
+						date: res.data.transaction.transaction.date,
+						category: res.data.transaction.transaction.category,
+						note: 'From receipt',
+						amount: res.data.transaction.transaction.amount
+					};
+					openEdit(tt);
+					return true;
+				} else showNotification('Failed to upload receipt.', 'error');
+			})
+			.catch((err) => {
+				console.error('Error uploading receipt:', err);
+				return false;
+			});
+		return true;
+	}
+
+	export function uploadReceipt(file: File): boolean {
+		uploadReceiptAsync(file).catch(() => {
+			/* swallow errors here; caller only expects a boolean return */
+		});
+		return true;
 	}
 
 	const asCategoryArray = (x: unknown): Category[] => {
@@ -226,6 +262,7 @@
 		}}
 		{editTxn}
 		{categories}
+		{uploadReceipt}
 		currencies={['THB', 'USD', 'JPY']}
 		onSubmit={(p) => SubmitTransaction(p)}
 	/>
