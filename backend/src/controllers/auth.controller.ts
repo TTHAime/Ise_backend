@@ -37,12 +37,12 @@ export const registerHandler = catchErrors(async (req, res) => {
     ...req.body,
     userAgent: req.headers['user-agent'],
   });
-  const { user, accessToken, refreshToken } = await createAccount(request);
+  const { user, accessToken, refreshToken, url } = await createAccount(request);
   await setDefaultCategories(user.id);
 
   return setAuthCookie({ res, accessToken, refreshToken })
     .status(CREATED)
-    .json(user);
+    .json({ user, url });
 });
 
 export const loginHandler = catchErrors(async (req, res) => {

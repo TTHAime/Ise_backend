@@ -92,6 +92,7 @@ export const createAccount = async (data: CreateAccountParams) => {
     user: user,
     accessToken,
     refreshToken,
+    url,
   };
 };
 
