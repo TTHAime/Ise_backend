@@ -201,9 +201,18 @@ async function loadDaashboard() {
 			console.error('Error fetching dashboard:', error);
 		});
 
-		Dashboard.set(data);
-		Totalexpense.set(Number(data.data.totalExpense));
-		Totalincome.set(Number(data.data.totalIncome));
+	// normalize payload shape: some tests/mock responses return
+	// { data: { ... } } while others return the payload directly.
+	const payload = (data && typeof data === 'object') ? (data.data ?? data) : {};
+
+	Dashboard.set(payload);
+
+	// Safely read totals from possible field names and fall back to 0
+	const totalExp = Number(payload?.totalExpense ?? payload?.totalExpenseAmount ?? 0) || 0;
+	const totalInc = Number(payload?.totalIncome ?? payload?.totalIncomeAmount ?? 0) || 0;
+
+	Totalexpense.set(totalExp);
+	Totalincome.set(totalInc);
 	} catch (err) {
 		console.error('Failed to load dashboard:', err);
 		throw err;

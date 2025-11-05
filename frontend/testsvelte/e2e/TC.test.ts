@@ -1,6 +1,5 @@
 import { test as base, expect, Page, Locator } from '@playwright/test';
 import { Faker, faker } from '@faker-js/faker';
-import { Verify } from 'crypto';
 
 /* -----------------------------------------------------------------------------
    Global fixture: disable animations + ensure hidden overlays don't eat clicks
@@ -397,11 +396,14 @@ test.describe('UC-04, Reciept', () => {
 			page.waitForEvent('filechooser'),
 			await page.getByRole('button', { name: 'Add Receipt' }).click(),
 		]);
-		await fileChooser.setFiles('e2e/assets/receipt_sample.jpg');
-		await expect(page.getByText('receipt_sample.jpg')).toBeVisible();
+		await fileChooser.setFiles('e2e/assets/receipt_test.jpg');
+		await expect(page.getByText('receipt_test.jpg')).toBeVisible();
 
+		const response =  page.waitForResponse(`${ApiRoot}transaction/slip`);
 		await page.getByRole('button', { name: 'Add Transaction', exact: true }).click();
-		const res = page.waitForResponse(`${ApiRoot}transaction/slip`);
+		const res = await response;
+
+		await expect(page.getByText('From Receipt')).toBeVisible();
 		//test data in edit modal and complete it
 		//not finish
 	});

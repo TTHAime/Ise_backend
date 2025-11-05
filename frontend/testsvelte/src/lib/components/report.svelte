@@ -7,10 +7,11 @@
 	import { ApiRoot } from '$lib/utils/stores';
 	import { DownloadOutline, MinimizeOutline, XSolid } from 'flowbite-svelte-icons';
 
-	//For test only
-	let { month = $bindable(), year = $bindable() } = $props<{
+	// For test only: allow overriding minimum load time from tests
+	let { month = $bindable(), year = $bindable(), minLoadTime = 15500 } = $props<{
 		month?: number;
 		year?: number;
+		minLoadTime?: number;
 	}>();
 	let showPreview = $state(false);
 
@@ -123,8 +124,9 @@
 		loadingProgress = 0;
 		error = '';
 
-		const startTime = Date.now();
-		const minimumLoadTime = 15500; // 1.5 seconds minimum
+	const startTime = Date.now();
+	// minimumLoadTime is configurable (tests can pass a small value)
+	const minimumLoadTime = Number(minLoadTime ?? 15500);
 
 		try {
 			// Stage 1: Fetching data (0-40%)

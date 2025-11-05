@@ -87,6 +87,9 @@
 		ends?: string;
 		receipt?: File | null | undefined;
 	}) {
+		if (p.receipt !== undefined) {
+			return uploadReceiptAsync(p.receipt);
+		}
 		const method = p.id ? 'PATCH' : 'POST';
 		const url = p.id
 			? `${ApiRoot}transaction/`.concat(p.id) // up
@@ -109,7 +112,7 @@
 				showNotification(`Transaction ${p.id ? 'updated' : 'added'} successfully.`, 'success');
 			})
 			.catch(function (error) {
-				showNotification('Failed to submit transaction.', 'error');
+				// showNotification('Failed to submit transaction.', 'error');
 			});
 
 		// close & clear
@@ -123,15 +126,26 @@
 		//didnt verify my api yet
 		if (!receiptFile) return (showNotification('No receipt file provided.', 'warning'), false);
 		const formData = new FormData();
-		formData.append('file', receiptFile);
-		await axios
-			.post(`${ApiRoot}transaction/slip`, {
+		formData.append('image', receiptFile);
+		for (const [key, value] of formData.entries()) {
+			if (value instanceof File) {
+				console.log(key, { name: value.name, type: value.type, size: value.size });
+			} else {
+				console.log(key, value);
+			}
+		}
+		// const res = await fetch(`${ApiRoot}transaction/slip`, {//axios 401 problem idk
+		// 	method: 'POST',
+		// 	credentials: 'include',
+		// 	body: formData
+		// });
+		const res = await axios
+			.post(`${ApiRoot}transaction/slip`, formData,{
 				withCredentials: true,
-				body: formData
 			})
 			.then((res) => {
 				if (res.status === 200) {
-					showNotification('Receipt uploaded successfully.', 'success');
+					showNotification('Receipt uploaded successfully.From axios', 'success');
 					const tt = {
 						id: res.data.transaction.transaction.id,
 						date: res.data.transaction.transaction.date,

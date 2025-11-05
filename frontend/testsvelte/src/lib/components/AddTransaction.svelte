@@ -6,33 +6,12 @@
 	import NotificationDialog from '$lib/components/NotificationModal.svelte';
 
 	type NotificationType = 'success' | 'error' | 'warning' | 'info';
-
 	type Notification = {
 		isOpen: boolean;
 		message: string;
 		type?: NotificationType;
 		title?: string;
 	};
-
-	let notification: Notification = $state({
-		isOpen: false,
-		message: '',
-		type: 'success',
-		title: ''
-	});
-
-	function showNotification(message: string, type: NotificationType = 'success', title = '') {
-		notification = {
-			isOpen: true,
-			message,
-			type,
-			title
-		};
-	}
-
-	function closeNotification() {
-		notification = { ...notification, isOpen: false };
-	}
 
 	// Shared types
 	export type Category = {
@@ -83,7 +62,28 @@
 		editTxn?: EditTxn | null;
 	}>();
 
-	// ---- Local state
+	// ---- Notification state + helpers
+	let notification: Notification = $state({
+		isOpen: false,
+		message: '',
+		type: 'success',
+		title: ''
+	});
+
+	function showNotification(message: string, type: NotificationType = 'success', title = '') {
+		notification = {
+			isOpen: true,
+			message,
+			type,
+			title
+		};
+	}
+
+	function closeNotification() {
+		notification = { ...notification, isOpen: false };
+	}
+
+	// ---- Derived from props
 	let singleValue: 'red' | 'green' = $state('green');
 	function handleSingleSelect(v: 'red' | 'green') {
 		singleValue = v;
@@ -120,9 +120,11 @@
 		selectedType === 'INCOME' ? 'box-transaction-income' : 'box-transaction-expense'
 	);
 
+	// ---- Refs
 	let firstField: HTMLSelectElement | null = $state(null);
 	let receiptInput: HTMLInputElement | null = $state(null);
 
+	// ---- Form fields
 	let categorySel = $state(''); // '' -> null on submit
 	let date = $state(new Date().toISOString().slice(0, 10));
 	let note = $state('');
@@ -142,6 +144,7 @@
 			: new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 	};
 
+	// ---- Effects
 	$effect(() => {
 		if (!categorySel) return;
 		const match = catsForType.some((c) => c.id === categorySel);
@@ -190,6 +193,7 @@
 		if (recurrence === 'NEVER' && endsType !== 'NEVER') endsType = 'NEVER';
 	});
 
+	// ---- UI helpers
 	function close() {
 		onClose();
 	}
@@ -209,6 +213,7 @@
 		if (e.currentTarget === e.target) close();
 	}
 
+	// ---- Submit/Delete handlers
 	function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (receiptInput != null && receiptFile != null) {
@@ -226,11 +231,14 @@
 		today.setHours(0, 0, 0, 0);
 		selectedDate.setHours(0, 0, 0, 0);
 
-		if (selectedDate > today) {
-			return showNotification('Please select no future date.', 'warning');
+		if(!receiptFile){
+			if (selectedDate > today) {
+				return showNotification('Please select no future date.', 'warning');
+			}
+			if (!category) return showNotification('Please select a category.', 'warning');
+			if (!value || Number.isNaN(value) || value <= 0) return showNotification('Please enter a valid amount.', 'warning');
 		}
-		if (!category) return showNotification('Please select a category.', 'warning');
-		if (!value || Number.isNaN(value) || value <= 0) return showNotification('Please enter a valid amount.', 'warning');
+
 
 		onSubmit({
 			id: editTxn?.id,
@@ -246,7 +254,7 @@
 		});
 	}
 
-	async function handleDelete() {
+	export async function handleDelete() {
 		await axios
 			.delete(`${ApiRoot}transaction/${editTxn?.id}`, {
 				withCredentials: true
@@ -267,8 +275,10 @@
 			});
 	}
 
+
 	const submitLabel = $derived(editTxn ? 'Update Transaction' : 'Add Transaction');
 </script>
+
 
 <svelte:window on:keydown={(e) => open && e.key === 'Escape' && close()} />
 
