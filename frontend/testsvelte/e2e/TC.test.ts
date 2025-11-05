@@ -403,9 +403,30 @@ test.describe('UC-04, Reciept', () => {
 		await page.getByRole('button', { name: 'Add Transaction', exact: true }).click();
 		const res = await response;
 
-		await expect(page.getByText('From Receipt')).toBeVisible();
+		await page.getByText('Close').click();
+		const categoryOption = page.getByLabel('Category Select Category📋');
+		categoryOption.selectOption('🍽️ Food & Dining');
+
+		await page.getByRole('button', { name: 'Update Transaction' }).click();
+
+		await page.getByText('Close').click();
+
+		await expect(page.getByText('From receipt')).toBeVisible();
+		await expect(page.getByText('30')).toBeVisible();
 		//test data in edit modal and complete it
-		//not finish
+		
+		//delete it for next test
+		await page.locator('button').filter({ hasText: 'From receipt' }).first().click();
+
+		const responsePromise = page.waitForResponse((response) =>
+			response.url().startsWith(`${ApiRoot}transaction`)
+		);
+		await page.getByRole('button', { name: 'Delete' }).click();
+		const response1 = await responsePromise;
+
+		await expect(page.getByText('Transaction deleted')).toBeVisible();
+		await page.getByText('Close').click();
+		await expect(response1.ok()).toBeTruthy(); //200 ok is passed
 	});
 });
 test.describe.serial('UC-05, Manage Categories', () => {

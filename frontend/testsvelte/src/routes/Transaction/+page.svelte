@@ -102,7 +102,7 @@
 			categoryId: p.category
 		};
 
-		const res = await axios(url, {
+		await axios(url, {
 			method,
 			withCredentials: true,
 			headers: { 'Content-Type': 'application/json' },
@@ -134,24 +134,20 @@
 				console.log(key, value);
 			}
 		}
-		// const res = await fetch(`${ApiRoot}transaction/slip`, {//axios 401 problem idk
-		// 	method: 'POST',
-		// 	credentials: 'include',
-		// 	body: formData
-		// });
-		const res = await axios
+		await axios
 			.post(`${ApiRoot}transaction/slip`, formData,{
 				withCredentials: true,
 			})
 			.then((res) => {
 				if (res.status === 200) {
-					showNotification('Receipt uploaded successfully.From axios', 'success');
+					showNotification('Receipt uploaded successfully.', 'success');
+					console.log(res);
 					const tt = {
 						id: res.data.transaction.transaction.id,
 						date: res.data.transaction.transaction.date,
 						category: res.data.transaction.transaction.category,
 						note: 'From receipt',
-						amount: res.data.transaction.transaction.amount
+						amount: -res.data.transaction.transaction.amount
 					};
 					openEdit(tt);
 					return true;

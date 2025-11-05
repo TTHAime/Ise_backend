@@ -4,6 +4,7 @@
 	import axios from 'axios';
 	import { ApiRoot, loadAll } from '$lib/utils/stores';
 	import NotificationDialog from '$lib/components/NotificationModal.svelte';
+	import { refreshAll } from '$app/navigation';
 
 	type NotificationType = 'success' | 'error' | 'warning' | 'info';
 	type Notification = {
@@ -263,9 +264,8 @@
 				if (response.status === 200) {
 					showNotification('Transaction deleted successfully.', 'success');
 					await new Promise((resolve) => setTimeout(resolve, 4500)); // wait a bit before closing
-					if (notification.isOpen === false) {
-						close();
-					}
+					close();
+					refreshAll();
 				} else {
 					showNotification('Failed to delete transaction.', 'error');
 				}

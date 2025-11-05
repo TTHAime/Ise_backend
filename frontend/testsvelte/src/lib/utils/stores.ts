@@ -158,7 +158,7 @@ export async function loadData(a?: Date | string, b?: Date | string) {
 		dateFrom: iso(start),
 		dateTo: iso(end)
 	};
-	console.log('Loading data from', params.dateFrom, 'to', params.dateTo);
+	// console.log('Loading data from', params.dateFrom, 'to', params.dateTo);
 
 	try {
 		const [incRes, expRes] = await Promise.all([
